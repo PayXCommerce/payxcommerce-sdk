@@ -4,7 +4,7 @@ class ModelExtensionPaymentPayXCommerce extends Model
 {
     public function getMethod($address, $total)
     {
-        if (!$this->config->get('payment_payxcommerce_status')) {
+        if (!$this->config->get('payment_payxcommerce_status') || !$this->isConfigured()) {
             return [];
         }
 
@@ -39,7 +39,7 @@ class ModelExtensionPaymentPayXCommerce extends Model
 
         return [
             'code' => 'payxcommerce',
-            'title' => $this->config->get('payment_payxcommerce_title') ?: 'PayXCommerce',
+            'title' => $this->publicText('payment_payxcommerce_title', 'Pay securely with {brand}'),
             'terms' => '',
             'sort_order' => (int) $this->config->get('payment_payxcommerce_sort_order'),
         ];
@@ -99,5 +99,25 @@ class ModelExtensionPaymentPayXCommerce extends Model
         return array_values(array_filter(array_map(static function ($value) {
             return strtoupper(trim($value));
         }, explode(',', $raw))));
+    }
+
+    private function isConfigured(): bool
+    {
+        if (!$this->config->get('payment_payxcommerce_webhook_secret')) {
+            return false;
+        }
+
+        if ($this->config->get('payment_payxcommerce_auth_method') === 'bearer') {
+            return (bool) $this->config->get('payment_payxcommerce_client_id') && (bool) $this->config->get('payment_payxcommerce_client_secret');
+        }
+
+        return (bool) $this->config->get('payment_payxcommerce_public_key') && (bool) $this->config->get('payment_payxcommerce_secret_key');
+    }
+
+    private function publicText(string $key, string $default): string
+    {
+        $brand = (string) ($this->config->get('payment_payxcommerce_brand_name') ?: 'PayXCommerce');
+        $value = (string) ($this->config->get($key) ?: $default);
+        return str_replace('{brand}', $brand, $value);
     }
 }

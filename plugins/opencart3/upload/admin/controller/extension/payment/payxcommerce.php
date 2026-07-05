@@ -48,8 +48,10 @@ class ControllerExtensionPaymentPayXCommerce extends Controller
             'payment_payxcommerce_client_id' => '',
             'payment_payxcommerce_client_secret' => '',
             'payment_payxcommerce_webhook_secret' => '',
+            'payment_payxcommerce_brand_name' => 'PayXCommerce',
             'payment_payxcommerce_title' => 'Pay securely with PayXCommerce',
             'payment_payxcommerce_description' => 'You will be redirected to PayXCommerce hosted checkout.',
+            'payment_payxcommerce_button_text' => 'Continue to secure checkout',
             'payment_payxcommerce_allowed_currencies' => 'USD,EUR,GBP,AUD,NZD,CAD,JPY',
             'payment_payxcommerce_allowed_countries' => '',
             'payment_payxcommerce_min_total' => '0',
@@ -148,73 +150,13 @@ class ControllerExtensionPaymentPayXCommerce extends Controller
     private function validateCredentials(array $settings): bool
     {
         try {
-            $this->apiRequest('GET', '/balance', null, $settings);
+            require_once DIR_SYSTEM . 'library/payxcommerce.php';
+            $client = new PayXCommerce($settings);
+            $client->validateCredentials();
             return true;
         } catch (Throwable $exception) {
-            $this->log->write('PayXCommerce credential validation failed: ' . $exception->getMessage());
+            $this->log->write('PayXCommerce credential validation failed: ' . PayXCommerce::redact($exception->getMessage()));
             return false;
         }
-    }
-
-    private function apiRequest(string $method, string $path, ?array $payload, array $settings): array
-    {
-        $base_url = rtrim((string) ($settings['payment_payxcommerce_base_url'] ?? 'https://payxcommerce.com/api/v1'), '/');
-        $body = $payload === null ? '' : json_encode($payload, JSON_UNESCAPED_SLASHES);
-        $headers = ['Accept: application/json'];
-        if ($payload !== null) {
-            $headers[] = 'Content-Type: application/json';
-        }
-
-        if (($settings['payment_payxcommerce_auth_method'] ?? 'hmac') === 'bearer') {
-            $headers[] = 'Authorization: Bearer ' . $this->bearerToken($settings);
-        } else {
-            $timestamp = (string) time();
-            $nonce = bin2hex(random_bytes(16));
-            $secret = (string) ($settings['payment_payxcommerce_secret_key'] ?? '');
-            $headers[] = 'X-PXC-Public-Key: ' . ($settings['payment_payxcommerce_public_key'] ?? '');
-            $headers[] = 'X-PXC-Timestamp: ' . $timestamp;
-            $headers[] = 'X-PXC-Nonce: ' . $nonce;
-            $headers[] = 'X-PXC-Signature: ' . hash_hmac('sha256', $timestamp . '.' . $nonce . '.' . $body, $secret);
-        }
-
-        $curl = curl_init($base_url . '/' . ltrim($path, '/'));
-        curl_setopt_array($curl, [CURLOPT_CUSTOMREQUEST => $method, CURLOPT_RETURNTRANSFER => true, CURLOPT_HTTPHEADER => $headers, CURLOPT_TIMEOUT => 30]);
-        if ($body !== '') {
-            curl_setopt($curl, CURLOPT_POSTFIELDS, $body);
-        }
-        $response_body = curl_exec($curl);
-        $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
-        $error = curl_error($curl);
-        curl_close($curl);
-
-        if ($response_body === false) {
-            throw new RuntimeException($error ?: 'PayXCommerce API request failed');
-        }
-        $decoded = json_decode((string) $response_body, true);
-        if ($status >= 400) {
-            throw new RuntimeException((string) ($decoded['message'] ?? $decoded['error'] ?? 'PayXCommerce API error'));
-        }
-        return is_array($decoded) ? $decoded : [];
-    }
-
-    private function bearerToken(array $settings): string
-    {
-        $base_url = rtrim((string) ($settings['payment_payxcommerce_base_url'] ?? 'https://payxcommerce.com/api/v1'), '/');
-        $payload = json_encode([
-            'grant_type' => 'client_credentials',
-            'client_id' => $settings['payment_payxcommerce_client_id'] ?? '',
-            'client_secret' => $settings['payment_payxcommerce_client_secret'] ?? '',
-            'scope' => 'payment_requests.write transactions.read balances.read refunds.write',
-        ], JSON_UNESCAPED_SLASHES);
-        $curl = curl_init($base_url . '/oauth/token');
-        curl_setopt_array($curl, [CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'Accept: application/json'], CURLOPT_POSTFIELDS => $payload, CURLOPT_TIMEOUT => 30]);
-        $response_body = curl_exec($curl);
-        $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
-        curl_close($curl);
-        $decoded = json_decode((string) $response_body, true);
-        if ($status >= 400 || empty($decoded['access_token'])) {
-            throw new RuntimeException((string) ($decoded['message'] ?? $decoded['error'] ?? 'Unable to create PayXCommerce token'));
-        }
-        return (string) $decoded['access_token'];
     }
 }
