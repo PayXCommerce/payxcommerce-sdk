@@ -12,6 +12,7 @@ This repository is the public integration home for PayXCommerce. It starts with 
 - `examples/raw-php` — copy-paste PHP examples that work without Composer.
 - `examples/raw-python` — dependency-free Python examples using the standard library.
 - `examples/raw-nodejs` — dependency-free Node.js examples using built-in modules.
+- `examples/sdk-php` — examples using the PHP SDK.
 - `examples/sdk-python` — examples using the Python SDK.
 - `examples/sdk-nodejs` — examples using the Node.js SDK.
 - `plugins/woocommerce` — WooCommerce hosted checkout gateway.
@@ -71,7 +72,7 @@ Use the raw examples when you want to integrate without a packaged SDK:
 
 Each language folder includes HMAC requests, Developer App Bearer requests, OAuth client credentials, refund requests, transaction lookup, balance lookup, and webhook signature verification.
 
-SDK-based examples are available under `examples/sdk-python` and `examples/sdk-nodejs`.
+SDK-based examples are available under `examples/sdk-php`, `examples/sdk-python`, and `examples/sdk-nodejs`.
 
 ## Quick HMAC Example
 

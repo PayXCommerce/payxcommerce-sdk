@@ -15,3 +15,4 @@
 - Added PHP SDK webhook event catalog and log redaction utilities, refreshed raw PHP examples to current event names, and wired WooCommerce to use shared SDK event/redaction helpers.
 - Added dependency-free raw Python and Node.js examples for HMAC, Bearer token, OAuth client credentials, payment requests, balances, transaction lookup, refunds, and webhook verification.
 - Added Python and Node.js SDK packages with auth, OAuth, resources, webhook verification, event helpers, redaction helpers, package tests, and SDK-based examples.
+- Added top-level PHP SDK examples for HMAC payment requests, OAuth/Bearer payment requests, and webhook verification.

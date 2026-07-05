@@ -5,7 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 php "$ROOT_DIR/packages/php-sdk/tests/run.php"
 find "$ROOT_DIR/packages/php-sdk/src" -name '*.php' -print -exec php -l {} \;
-find "$ROOT_DIR/examples/raw-php" -name '*.php' -print -exec php -l {} \;
+find "$ROOT_DIR/examples/raw-php" "$ROOT_DIR/examples/sdk-php" "$ROOT_DIR/packages/php-sdk/examples" -name '*.php' -print -exec php -l {} \;
 if command -v python3 >/dev/null 2>&1; then
   python3 "$ROOT_DIR/packages/python-sdk/tests/run.py"
   find "$ROOT_DIR/packages/python-sdk" "$ROOT_DIR/examples/raw-python" "$ROOT_DIR/examples/sdk-python" -name '*.py' -print -exec python3 -m py_compile {} \;
