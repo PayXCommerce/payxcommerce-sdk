@@ -1,0 +1,15 @@
+{
+  "name": "payxcommerce/magento2-payment",
+  "description": "PayXCommerce hosted checkout payment module for Magento 2.",
+  "type": "magento2-module",
+  "license": "MIT",
+  "autoload": {
+    "files": [
+      "registration.php"
+    ],
+    "psr-4": {
+      "PayXCommerce\\Payment\\": ""
+    }
+  }
+}
+
