@@ -103,6 +103,7 @@ class ControllerExtensionPaymentPayXCommerce extends Controller
             PRIMARY KEY (`id`),
             UNIQUE KEY `order_id` (`order_id`),
             KEY `payx_request_number` (`payx_request_number`),
+            KEY `payx_invoice_number` (`payx_invoice_number`),
             KEY `payx_transaction_reference` (`payx_transaction_reference`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
 

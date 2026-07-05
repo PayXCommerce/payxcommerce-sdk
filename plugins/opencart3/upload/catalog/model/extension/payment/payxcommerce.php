@@ -59,7 +59,7 @@ class ModelExtensionPaymentPayXCommerce extends Model
             return (int) $payload['merchant_order_id'];
         }
 
-        foreach (['request_number' => 'payx_request_number', 'transaction_reference' => 'payx_transaction_reference'] as $payload_key => $column) {
+        foreach (['request_number' => 'payx_request_number', 'invoice_number' => 'payx_invoice_number', 'transaction_reference' => 'payx_transaction_reference'] as $payload_key => $column) {
             if (empty($payload[$payload_key])) {
                 continue;
             }
