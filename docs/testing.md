@@ -3,6 +3,7 @@
 ## SDK
 
 ```bash
+tools/test/run-all.sh
 php packages/php-sdk/tests/run.php
 find packages/php-sdk/src -name '*.php' -print -exec php -l {} \;
 ```
@@ -20,4 +21,3 @@ find plugins -name '*.php' -print -exec php -l {} \;
 ```
 
 Full ecommerce smoke tests require WordPress/WooCommerce, OpenCart 3, OpenCart 4, and Magento 2 test installations.
-
