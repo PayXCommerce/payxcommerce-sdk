@@ -3,6 +3,8 @@
 .vscode/
 vendor/
 node_modules/
+__pycache__/
+*.py[cod]
 coverage/
 dist/
 build/
@@ -13,4 +15,3 @@ build/
 !.env.example
 composer.lock
 auth.json
-
