@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Config:etc/system_file.xsd">
+    <system>
+        <section id="payment">
+            <group id="payxcommerce" translate="label" type="text" sortOrder="910" showInDefault="1" showInWebsite="1" showInStore="1">
+                <label>PayXCommerce Hosted Checkout</label>
+                <field id="active" translate="label" type="select" sortOrder="10" showInDefault="1" showInWebsite="1" showInStore="1"><label>Enabled</label><source_model>Magento\Config\Model\Config\Source\Yesno</source_model></field>
+                <field id="title" translate="label" type="text" sortOrder="20" showInDefault="1" showInWebsite="1" showInStore="1"><label>Checkout Title</label></field>
+                <field id="description" translate="label" type="textarea" sortOrder="30" showInDefault="1" showInWebsite="1" showInStore="1"><label>Checkout Description</label></field>
+                <field id="environment" translate="label" type="select" sortOrder="40" showInDefault="1" showInWebsite="1" showInStore="1"><label>Environment</label><source_model>PayXCommerce\Payment\Model\Config\Source\Environment</source_model></field>
+                <field id="auth_method" translate="label" type="select" sortOrder="50" showInDefault="1" showInWebsite="1" showInStore="1"><label>Authentication Method</label><source_model>PayXCommerce\Payment\Model\Config\Source\AuthMethod</source_model></field>
+                <field id="base_url" translate="label" type="text" sortOrder="60" showInDefault="1" showInWebsite="1" showInStore="1"><label>API Base URL</label></field>
+                <field id="public_key" translate="label" type="obscure" sortOrder="70" showInDefault="1" showInWebsite="1" showInStore="1"><label>Public Key</label><backend_model>Magento\Config\Model\Config\Backend\Encrypted</backend_model></field>
+                <field id="secret_key" translate="label" type="obscure" sortOrder="80" showInDefault="1" showInWebsite="1" showInStore="1"><label>Secret Key</label><backend_model>Magento\Config\Model\Config\Backend\Encrypted</backend_model></field>
+                <field id="client_id" translate="label" type="obscure" sortOrder="90" showInDefault="1" showInWebsite="1" showInStore="1"><label>Developer App Client ID</label><backend_model>Magento\Config\Model\Config\Backend\Encrypted</backend_model></field>
+                <field id="client_secret" translate="label" type="obscure" sortOrder="100" showInDefault="1" showInWebsite="1" showInStore="1"><label>Developer App Client Secret</label><backend_model>Magento\Config\Model\Config\Backend\Encrypted</backend_model></field>
+                <field id="webhook_secret" translate="label" type="obscure" sortOrder="110" showInDefault="1" showInWebsite="1" showInStore="1"><label>Webhook Secret</label><backend_model>Magento\Config\Model\Config\Backend\Encrypted</backend_model></field>
+                <field id="allowed_currencies" translate="label" type="text" sortOrder="120" showInDefault="1" showInWebsite="1" showInStore="1"><label>Allowed Currencies</label><comment>Comma-separated ISO currency codes. Blank allows all.</comment></field>
+                <field id="allowed_countries" translate="label" type="text" sortOrder="130" showInDefault="1" showInWebsite="1" showInStore="1"><label>Allowed Countries</label><comment>Comma-separated ISO-2 country codes. Blank allows all.</comment></field>
+                <field id="min_order_total" translate="label" type="text" sortOrder="140" showInDefault="1" showInWebsite="1" showInStore="1"><label>Minimum Order Total</label></field>
+                <field id="max_order_total" translate="label" type="text" sortOrder="150" showInDefault="1" showInWebsite="1" showInStore="1"><label>Maximum Order Total</label><comment>0 means no maximum.</comment></field>
+                <field id="debug" translate="label" type="select" sortOrder="160" showInDefault="1" showInWebsite="1" showInStore="1"><label>Debug Logging</label><source_model>Magento\Config\Model\Config\Source\Yesno</source_model></field>
+                <field id="sort_order" translate="label" type="text" sortOrder="170" showInDefault="1" showInWebsite="1" showInStore="1"><label>Sort Order</label></field>
+            </group>
+        </section>
+    </system>
+</config>

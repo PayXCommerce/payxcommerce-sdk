@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Store:etc/config.xsd">
+    <default>
+        <payment>
+            <payxcommerce>
+                <active>0</active>
+                <model>PayXCommerce\Payment\Model\PaymentMethod</model>
+                <title>Pay securely with PayXCommerce</title>
+                <description>You will be redirected to PayXCommerce hosted checkout.</description>
+                <environment>test</environment>
+                <auth_method>hmac</auth_method>
+                <base_url>https://payxcommerce.com/api/v1</base_url>
+                <allowed_currencies>USD,EUR,GBP,AUD,NZD,CAD,JPY</allowed_currencies>
+                <allowed_countries></allowed_countries>
+                <min_order_total>0</min_order_total>
+                <max_order_total>0</max_order_total>
+                <order_status>pending_payment</order_status>
+                <success_status>processing</success_status>
+                <failed_status>canceled</failed_status>
+                <cancelled_status>canceled</cancelled_status>
+                <refunded_status>closed</refunded_status>
+                <chargeback_status>holded</chargeback_status>
+                <debug>0</debug>
+                <sort_order>0</sort_order>
+                <can_use_checkout>1</can_use_checkout>
+                <can_use_internal>0</can_use_internal>
+                <is_gateway>1</is_gateway>
+            </payxcommerce>
+        </payment>
+    </default>
+</config>
