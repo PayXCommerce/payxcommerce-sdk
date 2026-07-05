@@ -72,7 +72,7 @@ Use the raw examples when you want to integrate without a packaged SDK:
 
 Each language folder includes HMAC requests, Developer App Bearer requests, OAuth client credentials, refund requests, transaction lookup, balance lookup, and webhook signature verification.
 
-SDK-based examples are available under `examples/sdk-php`, `examples/sdk-python`, and `examples/sdk-nodejs`.
+SDK-based examples are available under `examples/sdk-php`, `examples/sdk-python`, and `examples/sdk-nodejs`; each includes HMAC payment request, OAuth/Bearer payment request, and webhook verification examples.
 
 ## Quick HMAC Example
 

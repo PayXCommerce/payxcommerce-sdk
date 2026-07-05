@@ -33,3 +33,13 @@ const client = new Client(new Config({ auth: new HmacAuth('YOUR_PUBLIC_KEY', 'YO
 const response = await client.paymentRequests().create({ amount: 100, currency: 'USD', purpose: 'Order #1001' });
 console.log(response.checkout_url);
 ```
+
+## Examples
+
+Package-local examples are available in `examples/`:
+
+- `create-payment-request.js` — HMAC API key payment request.
+- `oauth-bearer-payment-request.js` — Developer App OAuth client credentials followed by Bearer-token payment request.
+- `webhook-verify.js` — Signed webhook verification and event handling.
+
+The repository-level mirror is available in `../../examples/sdk-nodejs`.

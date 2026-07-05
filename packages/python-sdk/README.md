@@ -41,3 +41,13 @@ from payxcommerce.webhooks.verifier import Verifier
 
 payload = Verifier("YOUR_WEBHOOK_SECRET").verify(raw_body, headers)
 ```
+
+## Examples
+
+Package-local examples are available in `examples/`:
+
+- `create_payment_request.py` — HMAC API key payment request.
+- `oauth_bearer_payment_request.py` — Developer App OAuth client credentials followed by Bearer-token payment request.
+- `webhook_verify.py` — Signed webhook verification and event handling.
+
+The repository-level mirror is available in `../../examples/sdk-python`.

@@ -16,3 +16,4 @@
 - Added dependency-free raw Python and Node.js examples for HMAC, Bearer token, OAuth client credentials, payment requests, balances, transaction lookup, refunds, and webhook verification.
 - Added Python and Node.js SDK packages with auth, OAuth, resources, webhook verification, event helpers, redaction helpers, package tests, and SDK-based examples.
 - Added top-level PHP SDK examples for HMAC payment requests, OAuth/Bearer payment requests, and webhook verification.
+- Aligned package-local and repository-level SDK examples across PHP, Python, and Node.js.

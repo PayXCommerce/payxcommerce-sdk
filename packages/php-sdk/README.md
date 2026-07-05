@@ -76,3 +76,13 @@ $safeMessage = \PayXCommerce\Util\Redactor::text($exception->getMessage());
 ```bash
 php tests/run.php
 ```
+
+## Examples
+
+Package-local examples are available in `examples/`:
+
+- `create-payment-request.php` — HMAC API key payment request.
+- `oauth-bearer-payment-request.php` — Developer App OAuth client credentials followed by Bearer-token payment request.
+- `webhook-verify.php` — Signed webhook verification and event handling.
+
+The repository-level mirror is available in `../../examples/sdk-php`.
