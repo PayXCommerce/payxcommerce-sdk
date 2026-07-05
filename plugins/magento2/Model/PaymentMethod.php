@@ -25,6 +25,18 @@ class PaymentMethod extends AbstractMethod
             return false;
         }
 
+        if (!$this->getConfigData('webhook_secret')) {
+            return false;
+        }
+
+        if ($this->getConfigData('auth_method') === 'bearer') {
+            if (!$this->getConfigData('client_id') || !$this->getConfigData('client_secret')) {
+                return false;
+            }
+        } elseif (!$this->getConfigData('public_key') || !$this->getConfigData('secret_key')) {
+            return false;
+        }
+
         if (!$quote) {
             return true;
         }

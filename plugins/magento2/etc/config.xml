@@ -5,8 +5,10 @@
             <payxcommerce>
                 <active>0</active>
                 <model>PayXCommerce\Payment\Model\PaymentMethod</model>
-                <title>Pay securely with PayXCommerce</title>
-                <description>You will be redirected to PayXCommerce hosted checkout.</description>
+                <brand_name>PayXCommerce</brand_name>
+                <title>Pay securely with {brand}</title>
+                <description>You will be redirected to secure hosted checkout to complete your payment.</description>
+                <button_text>Continue to secure checkout</button_text>
                 <environment>test</environment>
                 <auth_method>hmac</auth_method>
                 <base_url>https://payxcommerce.com/api/v1</base_url>

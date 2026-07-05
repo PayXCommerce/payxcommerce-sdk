@@ -50,9 +50,12 @@ Implemented under `plugins/magento2` as module `PayXCommerce_Payment`.
 - Declares Magento Sales, Payment, and Checkout module dependencies.
 - Adds admin configuration under Stores → Configuration → Sales → Payment Methods.
 - Provides encrypted credential fields for API keys, Developer App credentials, and webhook secret.
+- Uses dedicated config, API client, request builder, webhook verifier, webhook processor, and redacted logger services.
+- Uses configurable public brand name, title, description, and checkout button text.
+- Prevents enabling the method when required credentials are missing.
 - Adds frontend checkout renderer that places the order and redirects to PayXCommerce hosted checkout creation.
 - Adds `payxcommerce/checkout/start` controller to create hosted checkout requests.
-- Adds `payxcommerce/webhook/index` controller to verify PayXCommerce webhooks and update orders.
+- Adds CSRF-aware `payxcommerce/webhook/index` controller to verify signed PayXCommerce webhooks and update orders.
 - Adds availability checks for active status, currency, billing country, min amount, and max amount.
 
 ## Remaining External Validation

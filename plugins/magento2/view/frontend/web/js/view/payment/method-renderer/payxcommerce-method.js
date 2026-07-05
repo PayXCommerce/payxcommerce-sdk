@@ -24,7 +24,11 @@ define([
         },
 
         getDescription: function () {
-            return window.checkoutConfig.payment.payxcommerce.description || 'You will be redirected to PayXCommerce hosted checkout.';
+            return window.checkoutConfig.payment.payxcommerce.description || 'You will be redirected to secure hosted checkout to complete your payment.';
+        },
+
+        getButtonText: function () {
+            return window.checkoutConfig.payment.payxcommerce.buttonText || 'Continue to secure checkout';
         },
 
         placeOrder: function (data, event) {
