@@ -1,0 +1,63 @@
+# PayXCommerce Integrations
+
+PayXCommerce SDKs and plugins for hosted checkout, payment requests, API integrations, refunds, balances, transaction lookup, and signed webhooks.
+
+This repository is the public integration home for PayXCommerce. It starts with a PHP SDK and raw PHP examples, then uses the same SDK foundation for ecommerce plugins.
+
+## Packages
+
+- `packages/php-sdk` — PHP 8.1+ SDK for PayXCommerce API v1.
+- `examples/raw-php` — copy-paste PHP examples that work without Composer.
+- `plugins/woocommerce` — WooCommerce hosted checkout gateway.
+- `plugins/opencart3` — OpenCart 3 hosted checkout extension.
+- `plugins/opencart4` — OpenCart 4 hosted checkout extension.
+- `plugins/magento2` — Magento 2 hosted checkout module.
+
+## API Coverage
+
+- HMAC API key authentication.
+- Developer App OAuth client credentials and Bearer token authentication.
+- Create hosted checkout payment requests.
+- Read merchant balances.
+- Lookup transactions.
+- Submit refund requests.
+- Verify signed webhooks.
+
+## Install PHP SDK
+
+```bash
+composer require payxcommerce/payxcommerce-php
+```
+
+Developer preview note: until the package is published, use the local package in `packages/php-sdk`.
+
+## Quick HMAC Example
+
+```php
+use PayXCommerce\Auth\HmacAuth;
+use PayXCommerce\Client;
+use PayXCommerce\Config;
+
+$client = new Client(new Config(
+    baseUrl: 'https://payxcommerce.com/api/v1',
+    auth: new HmacAuth('pxc_public_key', 'pxc_secret_key')
+));
+
+$response = $client->paymentRequests()->create([
+    'amount' => 125.50,
+    'currency' => 'USD',
+    'purpose' => 'Invoice INV-1001',
+    'customer' => [
+        'name' => 'Jane Customer',
+        'email' => 'customer@example.com',
+        'country' => 'United States',
+    ],
+]);
+
+echo $response['checkout_url'];
+```
+
+## Security
+
+Never expose HMAC secret keys, Developer App client secrets, Bearer tokens, or webhook secrets in frontend code. All signing and token creation must happen server-side.
+

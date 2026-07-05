@@ -1,0 +1,16 @@
+.DS_Store
+.idea/
+.vscode/
+vendor/
+node_modules/
+coverage/
+dist/
+build/
+*.log
+*.zip
+.env
+.env.*
+!.env.example
+composer.lock
+auth.json
+
