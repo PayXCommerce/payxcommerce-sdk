@@ -29,7 +29,7 @@ This repository is the public integration home for PayXCommerce. It starts with 
 composer require payxcommerce/payxcommerce-php
 ```
 
-Developer preview note: until the package is published, use the local package in `packages/php-sdk`.
+Developer preview note: until the package is published, use the local package in `packages/php-sdk`. Ecommerce plugin code is included for WooCommerce, OpenCart 3, OpenCart 4, and Magento 2, with platform installation testing still required before public marketplace release.
 
 ## Quick HMAC Example
 
@@ -61,3 +61,7 @@ echo $response['checkout_url'];
 
 Never expose HMAC secret keys, Developer App client secrets, Bearer tokens, or webhook secrets in frontend code. All signing and token creation must happen server-side.
 
+
+## Platform Implementation
+
+See `docs/platform-implementation-notes.md` for the implemented checkout, settings, validation, redirect, and webhook/IPN behavior by platform.
