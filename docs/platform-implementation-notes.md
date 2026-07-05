@@ -24,19 +24,23 @@ Implemented in `plugins/woocommerce/payxcommerce-gateway.php`.
 Implemented under `plugins/opencart3/upload`.
 
 - Adds admin settings, secret preservation, install tables, and credential validation.
+- Uses a shared OpenCart API client library for HMAC, Developer App Bearer token, hosted checkout creation, and signed webhook verification.
 - Adds payment availability model with currency, country, geo zone, and amount checks.
 - Creates PayXCommerce hosted checkout requests from OpenCart orders.
 - Stores PayXCommerce references in `oc_payxcommerce_order`.
 - Verifies IPN/webhook signatures before order updates.
 - Stores processed webhook IDs in `oc_payxcommerce_webhook_event` to avoid duplicate processing.
 - Maps payment/refund/chargeback events to configurable OpenCart order statuses.
+- Uses configurable public brand name, title, description, and checkout button text.
 
 ## OpenCart 4
 
 Implemented under `plugins/opencart4/upload/extension/payxcommerce`.
 
 - Uses OpenCart 4 namespaced extension structure and `install.json` metadata.
+- Uses a package-local API client library for HMAC, Developer App Bearer token, hosted checkout creation, credential validation, and signed webhook verification.
 - Adds admin settings, install tables, payment availability model, hosted checkout creation, and webhook signature verification.
+- Uses configurable public brand name, title, description, and checkout button text.
 - Keeps OpenCart 4 separate from OpenCart 3 because extension structures differ.
 
 ## Magento 2

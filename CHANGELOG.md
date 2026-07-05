@@ -9,4 +9,5 @@
 - Added HMAC, Bearer token, webhook, idempotency, API method, and plugin documentation.
 - Upgraded WooCommerce with a modular SDK-backed architecture, credential validation, configurable public brand text, checkout availability rules, hosted checkout redirects, WooCommerce Blocks support, signed webhook handling, metadata storage, helper functions, and refund requests.
 - Upgraded OpenCart 3 and OpenCart 4 with admin settings, availability checks, hosted checkout creation, reference storage, signed webhook handling, and event duplicate protection.
+- Refactored OpenCart 3 and OpenCart 4 around reusable PayXCommerce API client libraries with credential validation, configurable public checkout text, current event names, improved order reference lookup, and webhook processing state tracking.
 - Upgraded Magento 2 with module config, encrypted settings, checkout renderer, hosted checkout redirect controller, API client, availability checks, and webhook controller.

@@ -5,8 +5,16 @@ class Payxcommerce extends \Opencart\System\Engine\Model
 {
     public function getMethods(array $address = []): array
     {
-        if (!$this->config->get('payment_payxcommerce_status')) {
+        if (!$this->config->get('payment_payxcommerce_status') || !$this->isConfigured()) {
             return [];
+        }
+
+        $geo_zone_id = (int) $this->config->get('payment_payxcommerce_geo_zone_id');
+        if ($geo_zone_id > 0) {
+            $query = $this->db->query("SELECT * FROM `" . DB_PREFIX . "zone_to_geo_zone` WHERE geo_zone_id = '" . $geo_zone_id . "' AND country_id = '" . (int) ($address['country_id'] ?? 0) . "' AND (zone_id = '" . (int) ($address['zone_id'] ?? 0) . "' OR zone_id = '0')");
+            if (!$query->num_rows) {
+                return [];
+            }
         }
 
         $total = (float) ($this->cart ? $this->cart->getTotal() : 0);
@@ -30,10 +38,10 @@ class Payxcommerce extends \Opencart\System\Engine\Model
 
         return [[
             'code' => 'payxcommerce.payxcommerce',
-            'name' => $this->config->get('payment_payxcommerce_title') ?: 'PayXCommerce',
+            'name' => $this->publicText('payment_payxcommerce_title', 'Pay securely with {brand}'),
             'option' => [[
                 'code' => 'payxcommerce',
-                'name' => $this->config->get('payment_payxcommerce_title') ?: 'PayXCommerce',
+                'name' => $this->publicText('payment_payxcommerce_title', 'Pay securely with {brand}'),
             ]],
             'sort_order' => (int) $this->config->get('payment_payxcommerce_sort_order'),
         ]];
@@ -52,6 +60,16 @@ class Payxcommerce extends \Opencart\System\Engine\Model
         if (!empty($payload['merchant_order_id'])) {
             return (int) $payload['merchant_order_id'];
         }
+        foreach (['request_number' => 'payx_request_number', 'invoice_number' => 'payx_invoice_number', 'transaction_reference' => 'payx_transaction_reference'] as $payload_key => $column) {
+            if (empty($payload[$payload_key])) {
+                continue;
+            }
+            $query = $this->db->query("SELECT order_id FROM `" . DB_PREFIX . "payxcommerce_order` WHERE `" . $column . "` = '" . $this->db->escape((string) $payload[$payload_key]) . "' LIMIT 1");
+            if ($query->num_rows) {
+                return (int) $query->row['order_id'];
+            }
+        }
+
         return 0;
     }
 
@@ -63,7 +81,12 @@ class Payxcommerce extends \Opencart\System\Engine\Model
 
     public function recordWebhookEvent(string $event_id, int $order_id, string $event_type, string $raw_body): void
     {
-        $this->db->query("INSERT INTO `" . DB_PREFIX . "payxcommerce_webhook_event` SET event_id = '" . $this->db->escape($event_id) . "', order_id = '" . (int) $order_id . "', event_type = '" . $this->db->escape($event_type) . "', payload_hash = '" . hash('sha256', $raw_body) . "', processing_status = 'processed', created_at = NOW(), processed_at = NOW()");
+        $this->db->query("INSERT INTO `" . DB_PREFIX . "payxcommerce_webhook_event` SET event_id = '" . $this->db->escape($event_id) . "', order_id = '" . (int) $order_id . "', event_type = '" . $this->db->escape($event_type) . "', payload_hash = '" . hash('sha256', $raw_body) . "', processing_status = 'processing', created_at = NOW()");
+    }
+
+    public function completeWebhookEvent(string $event_id, string $status = 'processed', string $error = ''): void
+    {
+        $this->db->query("UPDATE `" . DB_PREFIX . "payxcommerce_webhook_event` SET processing_status = '" . $this->db->escape($status) . "', error_message = '" . $this->db->escape($error) . "', processed_at = NOW() WHERE event_id = '" . $this->db->escape($event_id) . "'");
     }
 
     public function updatePayxOrder(int $order_id, array $payload): void
@@ -74,5 +97,25 @@ class Payxcommerce extends \Opencart\System\Engine\Model
     private function csvConfig(string $key): array
     {
         return array_values(array_filter(array_map(static fn($value) => strtoupper(trim($value)), explode(',', (string) $this->config->get($key)))));
+    }
+
+    private function isConfigured(): bool
+    {
+        if (!$this->config->get('payment_payxcommerce_webhook_secret')) {
+            return false;
+        }
+
+        if ($this->config->get('payment_payxcommerce_auth_method') === 'bearer') {
+            return (bool) $this->config->get('payment_payxcommerce_client_id') && (bool) $this->config->get('payment_payxcommerce_client_secret');
+        }
+
+        return (bool) $this->config->get('payment_payxcommerce_public_key') && (bool) $this->config->get('payment_payxcommerce_secret_key');
+    }
+
+    private function publicText(string $key, string $default): string
+    {
+        $brand = (string) ($this->config->get('payment_payxcommerce_brand_name') ?: 'PayXCommerce');
+        $value = (string) ($this->config->get($key) ?: $default);
+        return str_replace('{brand}', $brand, $value);
     }
 }

@@ -26,7 +26,7 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
             } else {
                 $this->model_setting_setting->editSetting('payment_payxcommerce', $post);
                 $this->session->data['success'] = $this->language->get('text_success');
-            $this->response->redirect($this->url->link('marketplace/extension', 'user_token=' . $this->session->data['user_token'] . '&type=payment'));
+                $this->response->redirect($this->url->link('marketplace/extension', 'user_token=' . $this->session->data['user_token'] . '&type=payment'));
                 return;
             }
         }
@@ -41,8 +41,10 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
             'payment_payxcommerce_client_id' => '',
             'payment_payxcommerce_client_secret' => '',
             'payment_payxcommerce_webhook_secret' => '',
+            'payment_payxcommerce_brand_name' => 'PayXCommerce',
             'payment_payxcommerce_title' => 'Pay securely with PayXCommerce',
             'payment_payxcommerce_description' => 'You will be redirected to PayXCommerce hosted checkout.',
+            'payment_payxcommerce_button_text' => 'Continue to secure checkout',
             'payment_payxcommerce_allowed_currencies' => 'USD,EUR,GBP,AUD,NZD,CAD,JPY',
             'payment_payxcommerce_allowed_countries' => '',
             'payment_payxcommerce_min_total' => '0',
@@ -77,8 +79,8 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
 
     public function install(): void
     {
-        $this->db->query("CREATE TABLE IF NOT EXISTS `" . DB_PREFIX . "payxcommerce_order` (`id` INT NOT NULL AUTO_INCREMENT, `order_id` INT NOT NULL, `payx_request_number` VARCHAR(64) DEFAULT NULL, `payx_invoice_number` VARCHAR(64) DEFAULT NULL, `payx_payment_id` VARCHAR(64) DEFAULT NULL, `payx_transaction_reference` VARCHAR(64) DEFAULT NULL, `merchant_reference` VARCHAR(128) DEFAULT NULL, `checkout_url` TEXT DEFAULT NULL, `payment_status` VARCHAR(64) DEFAULT NULL, `settlement_status` VARCHAR(64) DEFAULT NULL, `created_at` DATETIME DEFAULT NULL, `updated_at` DATETIME DEFAULT NULL, PRIMARY KEY (`id`), UNIQUE KEY `order_id` (`order_id`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-        $this->db->query("CREATE TABLE IF NOT EXISTS `" . DB_PREFIX . "payxcommerce_webhook_event` (`id` INT NOT NULL AUTO_INCREMENT, `event_id` VARCHAR(128) NOT NULL, `order_id` INT DEFAULT NULL, `event_type` VARCHAR(128) DEFAULT NULL, `payload_hash` VARCHAR(64) DEFAULT NULL, `processing_status` VARCHAR(32) DEFAULT NULL, `error_message` TEXT DEFAULT NULL, `created_at` DATETIME DEFAULT NULL, `processed_at` DATETIME DEFAULT NULL, PRIMARY KEY (`id`), UNIQUE KEY `event_id` (`event_id`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        $this->db->query("CREATE TABLE IF NOT EXISTS `" . DB_PREFIX . "payxcommerce_order` (`id` INT NOT NULL AUTO_INCREMENT, `order_id` INT NOT NULL, `payx_request_number` VARCHAR(64) DEFAULT NULL, `payx_invoice_number` VARCHAR(64) DEFAULT NULL, `payx_payment_id` VARCHAR(64) DEFAULT NULL, `payx_transaction_reference` VARCHAR(64) DEFAULT NULL, `merchant_reference` VARCHAR(128) DEFAULT NULL, `checkout_url` TEXT DEFAULT NULL, `payment_status` VARCHAR(64) DEFAULT NULL, `settlement_status` VARCHAR(64) DEFAULT NULL, `created_at` DATETIME DEFAULT NULL, `updated_at` DATETIME DEFAULT NULL, PRIMARY KEY (`id`), UNIQUE KEY `order_id` (`order_id`), KEY `payx_request_number` (`payx_request_number`), KEY `payx_invoice_number` (`payx_invoice_number`), KEY `payx_transaction_reference` (`payx_transaction_reference`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        $this->db->query("CREATE TABLE IF NOT EXISTS `" . DB_PREFIX . "payxcommerce_webhook_event` (`id` INT NOT NULL AUTO_INCREMENT, `event_id` VARCHAR(128) NOT NULL, `order_id` INT DEFAULT NULL, `event_type` VARCHAR(128) DEFAULT NULL, `payload_hash` VARCHAR(64) DEFAULT NULL, `processing_status` VARCHAR(32) DEFAULT NULL, `error_message` TEXT DEFAULT NULL, `created_at` DATETIME DEFAULT NULL, `processed_at` DATETIME DEFAULT NULL, PRIMARY KEY (`id`), UNIQUE KEY `event_id` (`event_id`), KEY `order_id` (`order_id`), KEY `event_type` (`event_type`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     }
 
     public function uninstall(): void
@@ -90,52 +92,14 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
     private function validateCredentials(array $settings): bool
     {
         try {
-            $this->apiRequest('GET', '/balance', null, $settings);
+            require_once DIR_EXTENSION . 'payxcommerce/system/library/payxcommerce.php';
+            $client = new \Opencart\System\Library\Payxcommerce($settings);
+            $client->validateCredentials();
             return true;
         } catch (\Throwable $exception) {
-            $this->log->write('PayXCommerce credential validation failed: ' . $exception->getMessage());
+            $this->log->write('PayXCommerce credential validation failed: ' . \Opencart\System\Library\Payxcommerce::redact($exception->getMessage()));
             return false;
         }
-    }
-
-    private function apiRequest(string $method, string $path, ?array $payload, array $settings): array
-    {
-        $base_url = rtrim((string) ($settings['payment_payxcommerce_base_url'] ?? 'https://payxcommerce.com/api/v1'), '/');
-        $body = $payload === null ? '' : json_encode($payload, JSON_UNESCAPED_SLASHES);
-        $headers = ['Accept: application/json'];
-        if ($payload !== null) { $headers[] = 'Content-Type: application/json'; }
-        if (($settings['payment_payxcommerce_auth_method'] ?? 'hmac') === 'bearer') {
-            $headers[] = 'Authorization: Bearer ' . $this->bearerToken($settings);
-        } else {
-            $timestamp = (string) time();
-            $nonce = bin2hex(random_bytes(16));
-            $headers[] = 'X-PXC-Public-Key: ' . ($settings['payment_payxcommerce_public_key'] ?? '');
-            $headers[] = 'X-PXC-Timestamp: ' . $timestamp;
-            $headers[] = 'X-PXC-Nonce: ' . $nonce;
-            $headers[] = 'X-PXC-Signature: ' . hash_hmac('sha256', $timestamp . '.' . $nonce . '.' . $body, (string) ($settings['payment_payxcommerce_secret_key'] ?? ''));
-        }
-        $curl = curl_init($base_url . '/' . ltrim($path, '/'));
-        curl_setopt_array($curl, [CURLOPT_CUSTOMREQUEST => $method, CURLOPT_RETURNTRANSFER => true, CURLOPT_HTTPHEADER => $headers, CURLOPT_TIMEOUT => 30]);
-        if ($body !== '') { curl_setopt($curl, CURLOPT_POSTFIELDS, $body); }
-        $response_body = curl_exec($curl);
-        $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
-        curl_close($curl);
-        $decoded = json_decode((string) $response_body, true);
-        if ($status >= 400) { throw new \RuntimeException((string) ($decoded['message'] ?? $decoded['error'] ?? 'PayXCommerce API error')); }
-        return is_array($decoded) ? $decoded : [];
-    }
-
-    private function bearerToken(array $settings): string
-    {
-        $payload = json_encode(['grant_type' => 'client_credentials', 'client_id' => $settings['payment_payxcommerce_client_id'] ?? '', 'client_secret' => $settings['payment_payxcommerce_client_secret'] ?? '', 'scope' => 'payment_requests.write transactions.read balances.read refunds.write'], JSON_UNESCAPED_SLASHES);
-        $curl = curl_init(rtrim((string) ($settings['payment_payxcommerce_base_url'] ?? 'https://payxcommerce.com/api/v1'), '/') . '/oauth/token');
-        curl_setopt_array($curl, [CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'Accept: application/json'], CURLOPT_POSTFIELDS => $payload, CURLOPT_TIMEOUT => 30]);
-        $response_body = curl_exec($curl);
-        $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
-        curl_close($curl);
-        $decoded = json_decode((string) $response_body, true);
-        if ($status >= 400 || empty($decoded['access_token'])) { throw new \RuntimeException((string) ($decoded['message'] ?? $decoded['error'] ?? 'Unable to create PayXCommerce token')); }
-        return (string) $decoded['access_token'];
     }
 
     private function validate(): bool
