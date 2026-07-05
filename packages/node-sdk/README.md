@@ -18,7 +18,7 @@ Node.js 18+ SDK for PayXCommerce API v1.
 npm install @payxcommerce/payxcommerce
 ```
 
-Developer preview note: until published, install from this folder:
+Local development install:
 
 ```bash
 npm install ./packages/node-sdk

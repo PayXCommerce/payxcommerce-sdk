@@ -2,7 +2,7 @@
 
 ## Supported Versions
 
-This repository is currently in developer preview. Security fixes will target the latest `0.x` release until a stable `1.0.0` release is published.
+Security fixes target the latest maintained release. Merchants and integration partners should keep SDKs and plugins updated to the newest available version.
 
 ## Reporting a Vulnerability
 

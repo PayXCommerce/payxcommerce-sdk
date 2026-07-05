@@ -20,4 +20,4 @@ find examples/raw-php -name '*.php' -print -exec php -l {} \;
 find plugins -name '*.php' -print -exec php -l {} \;
 ```
 
-Full ecommerce smoke tests require WordPress/WooCommerce, OpenCart 3, OpenCart 4, and Magento 2 test installations.
+Full ecommerce acceptance tests should be run in WordPress/WooCommerce, OpenCart 3, OpenCart 4, and Magento 2 staging stores before enabling live processing.

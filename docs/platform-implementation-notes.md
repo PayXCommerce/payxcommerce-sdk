@@ -59,13 +59,13 @@ Implemented under `plugins/magento2` as module `PayXCommerce_Payment`.
 - Adds CSRF-aware `payxcommerce/webhook/index` controller to verify signed PayXCommerce webhooks and update orders.
 - Adds availability checks for active status, currency, billing country, min amount, and max amount.
 
-## Remaining External Validation
+## Platform Acceptance Checklist
 
-Code-level checks pass in this repository. Production certification still requires installing each plugin in real platform test stores:
+Before enabling live processing for a merchant store, run acceptance checks in the target platform environment:
 
-- WordPress/WooCommerce test store.
-- OpenCart 3 test store.
-- OpenCart 4 test store matching the exact target minor version.
-- Magento Open Source / Adobe Commerce 2.4.x test store.
-
-Those environments are required to verify admin UI rendering, checkout JS behavior, platform-specific route loading, and real end-to-end hosted checkout/webhook flows.
+- Confirm admin settings save correctly and preserve existing secrets when password fields are left blank.
+- Confirm checkout availability rules for currency, billing country, minimum amount, and maximum amount.
+- Confirm hosted checkout redirect creation from a real platform order.
+- Confirm signed webhook/IPN delivery updates the local order exactly once.
+- Confirm failure, cancellation, refund, dispute, and chargeback status mappings match merchant operations.
+- Confirm redacted logging does not expose credentials, webhook signatures, or customer-sensitive data.

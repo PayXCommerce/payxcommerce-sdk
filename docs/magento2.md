@@ -12,7 +12,7 @@ plugins/magento2
 PayXCommerce_Payment
 ```
 
-## First Release Behavior
+## Payment Behavior
 
 - Hosted checkout redirect.
 - PayXCommerce payment request creation.

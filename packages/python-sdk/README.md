@@ -18,7 +18,7 @@ Python 3.9+ SDK for PayXCommerce API v1.
 pip install payxcommerce
 ```
 
-Developer preview note: until published, install from this folder:
+Local development install:
 
 ```bash
 pip install -e packages/python-sdk

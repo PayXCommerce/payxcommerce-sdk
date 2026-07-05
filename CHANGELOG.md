@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 - Developer Preview
+## 0.1.0 - Initial Integration Release
 
 - Added initial monorepo foundation.
 - Added PHP SDK package structure.

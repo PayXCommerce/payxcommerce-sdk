@@ -36,7 +36,7 @@ This repository is the public integration home for PayXCommerce. It starts with 
 composer require payxcommerce/payxcommerce-php
 ```
 
-Developer preview note: until the package is published, use the local package in `packages/php-sdk`. Ecommerce plugin code is included for WooCommerce, OpenCart 3, OpenCart 4, and Magento 2, with platform installation testing still required before public marketplace release.
+For local development, use the package in `packages/php-sdk`. Ecommerce plugin code is included for WooCommerce, OpenCart 3, OpenCart 4, and Magento 2.
 
 ## Install Python SDK
 
@@ -44,7 +44,7 @@ Developer preview note: until the package is published, use the local package in
 pip install payxcommerce
 ```
 
-Developer preview:
+Local development install:
 
 ```bash
 pip install -e packages/python-sdk
@@ -56,7 +56,7 @@ pip install -e packages/python-sdk
 npm install @payxcommerce/payxcommerce
 ```
 
-Developer preview:
+Local development install:
 
 ```bash
 npm install ./packages/node-sdk

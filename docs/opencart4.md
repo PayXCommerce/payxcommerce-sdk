@@ -14,5 +14,5 @@ OpenCart 4 uses a different extension structure from OpenCart 3, so it is mainta
 index.php?route=extension/payxcommerce/payment/payxcommerce.webhook
 ```
 
-The final route must be verified against the specific OpenCart 4 test version before production packaging.
+Verify the webhook route after installation against the target OpenCart 4 minor version as part of store acceptance testing.
 
