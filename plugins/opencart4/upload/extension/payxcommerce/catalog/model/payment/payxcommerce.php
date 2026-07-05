@@ -1,0 +1,78 @@
+<?php
+namespace Opencart\Catalog\Model\Extension\Payxcommerce\Payment;
+
+class Payxcommerce extends \Opencart\System\Engine\Model
+{
+    public function getMethods(array $address = []): array
+    {
+        if (!$this->config->get('payment_payxcommerce_status')) {
+            return [];
+        }
+
+        $total = (float) ($this->cart ? $this->cart->getTotal() : 0);
+        $min_total = (float) $this->config->get('payment_payxcommerce_min_total');
+        $max_total = (float) $this->config->get('payment_payxcommerce_max_total');
+        if (($min_total > 0 && $total < $min_total) || ($max_total > 0 && $total > $max_total)) {
+            return [];
+        }
+
+        $currency = strtoupper((string) ($this->session->data['currency'] ?? $this->config->get('config_currency')));
+        $allowed_currencies = $this->csvConfig('payment_payxcommerce_allowed_currencies');
+        if ($allowed_currencies && !in_array($currency, $allowed_currencies, true)) {
+            return [];
+        }
+
+        $country = strtoupper((string) ($address['iso_code_2'] ?? ''));
+        $allowed_countries = $this->csvConfig('payment_payxcommerce_allowed_countries');
+        if ($country !== '' && $allowed_countries && !in_array($country, $allowed_countries, true)) {
+            return [];
+        }
+
+        return [[
+            'code' => 'payxcommerce.payxcommerce',
+            'name' => $this->config->get('payment_payxcommerce_title') ?: 'PayXCommerce',
+            'option' => [[
+                'code' => 'payxcommerce',
+                'name' => $this->config->get('payment_payxcommerce_title') ?: 'PayXCommerce',
+            ]],
+            'sort_order' => (int) $this->config->get('payment_payxcommerce_sort_order'),
+        ]];
+    }
+
+    public function savePayxOrder(int $order_id, array $response, string $merchant_reference): void
+    {
+        $this->db->query("INSERT INTO `" . DB_PREFIX . "payxcommerce_order` SET order_id = '" . (int) $order_id . "', payx_request_number = '" . $this->db->escape((string) ($response['request_number'] ?? '')) . "', payx_invoice_number = '" . $this->db->escape((string) ($response['invoice_number'] ?? '')) . "', merchant_reference = '" . $this->db->escape($merchant_reference) . "', checkout_url = '" . $this->db->escape((string) ($response['checkout_url'] ?? '')) . "', payment_status = 'created', created_at = NOW(), updated_at = NOW() ON DUPLICATE KEY UPDATE payx_request_number = VALUES(payx_request_number), payx_invoice_number = VALUES(payx_invoice_number), checkout_url = VALUES(checkout_url), payment_status = VALUES(payment_status), updated_at = NOW()");
+    }
+
+    public function findOrderId(array $payload): int
+    {
+        if (!empty($payload['metadata']['order_id'])) {
+            return (int) $payload['metadata']['order_id'];
+        }
+        if (!empty($payload['merchant_order_id'])) {
+            return (int) $payload['merchant_order_id'];
+        }
+        return 0;
+    }
+
+    public function webhookEventExists(string $event_id): bool
+    {
+        $query = $this->db->query("SELECT id FROM `" . DB_PREFIX . "payxcommerce_webhook_event` WHERE event_id = '" . $this->db->escape($event_id) . "' LIMIT 1");
+        return (bool) $query->num_rows;
+    }
+
+    public function recordWebhookEvent(string $event_id, int $order_id, string $event_type, string $raw_body): void
+    {
+        $this->db->query("INSERT INTO `" . DB_PREFIX . "payxcommerce_webhook_event` SET event_id = '" . $this->db->escape($event_id) . "', order_id = '" . (int) $order_id . "', event_type = '" . $this->db->escape($event_type) . "', payload_hash = '" . hash('sha256', $raw_body) . "', processing_status = 'processed', created_at = NOW(), processed_at = NOW()");
+    }
+
+    public function updatePayxOrder(int $order_id, array $payload): void
+    {
+        $this->db->query("UPDATE `" . DB_PREFIX . "payxcommerce_order` SET payx_payment_id = '" . $this->db->escape((string) ($payload['payment_id'] ?? '')) . "', payx_transaction_reference = '" . $this->db->escape((string) ($payload['transaction_reference'] ?? '')) . "', payment_status = '" . $this->db->escape((string) ($payload['event_type'] ?? '')) . "', settlement_status = '" . $this->db->escape((string) ($payload['settlement_status'] ?? '')) . "', updated_at = NOW() WHERE order_id = '" . (int) $order_id . "'");
+    }
+
+    private function csvConfig(string $key): array
+    {
+        return array_values(array_filter(array_map(static fn($value) => strtoupper(trim($value)), explode(',', (string) $this->config->get($key)))));
+    }
+}
