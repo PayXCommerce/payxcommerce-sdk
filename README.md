@@ -7,9 +7,13 @@ This repository is the public integration home for PayXCommerce. It starts with 
 ## Packages
 
 - `packages/php-sdk` — PHP 8.1+ SDK for PayXCommerce API v1.
+- `packages/python-sdk` — Python 3.9+ SDK for PayXCommerce API v1.
+- `packages/node-sdk` — Node.js 18+ SDK for PayXCommerce API v1.
 - `examples/raw-php` — copy-paste PHP examples that work without Composer.
 - `examples/raw-python` — dependency-free Python examples using the standard library.
 - `examples/raw-nodejs` — dependency-free Node.js examples using built-in modules.
+- `examples/sdk-python` — examples using the Python SDK.
+- `examples/sdk-nodejs` — examples using the Node.js SDK.
 - `plugins/woocommerce` — WooCommerce hosted checkout gateway.
 - `plugins/opencart3` — OpenCart 3 hosted checkout extension.
 - `plugins/opencart4` — OpenCart 4 hosted checkout extension.
@@ -33,6 +37,30 @@ composer require payxcommerce/payxcommerce-php
 
 Developer preview note: until the package is published, use the local package in `packages/php-sdk`. Ecommerce plugin code is included for WooCommerce, OpenCart 3, OpenCart 4, and Magento 2, with platform installation testing still required before public marketplace release.
 
+## Install Python SDK
+
+```bash
+pip install payxcommerce
+```
+
+Developer preview:
+
+```bash
+pip install -e packages/python-sdk
+```
+
+## Install Node.js SDK
+
+```bash
+npm install @payxcommerce/payxcommerce
+```
+
+Developer preview:
+
+```bash
+npm install ./packages/node-sdk
+```
+
 ## Raw Server Examples
 
 Use the raw examples when you want to integrate without a packaged SDK:
@@ -42,6 +70,8 @@ Use the raw examples when you want to integrate without a packaged SDK:
 - `examples/raw-nodejs`
 
 Each language folder includes HMAC requests, Developer App Bearer requests, OAuth client credentials, refund requests, transaction lookup, balance lookup, and webhook signature verification.
+
+SDK-based examples are available under `examples/sdk-python` and `examples/sdk-nodejs`.
 
 ## Quick HMAC Example
 

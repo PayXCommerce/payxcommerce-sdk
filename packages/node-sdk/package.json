@@ -1,0 +1,12 @@
+{
+  "name": "@payxcommerce/payxcommerce",
+  "version": "0.1.0",
+  "description": "Node.js SDK for PayXCommerce API v1 hosted checkout, refunds, balances, transactions, OAuth, and webhooks.",
+  "main": "src/index.js",
+  "type": "commonjs",
+  "license": "MIT",
+  "keywords": ["payxcommerce", "payments", "hosted-checkout", "fintech"],
+  "engines": {"node": ">=18"},
+  "scripts": {"test": "node test/run.js"},
+  "files": ["src", "README.md"]
+}

@@ -11,7 +11,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from typing import Any
+from typing import Any, Optional
 
 DEFAULT_BASE_URL = "https://payxcommerce.com/api/v1"
 TOKEN_SCOPE = "payment_requests.write transactions.read balances.read refunds.write"
@@ -30,11 +30,11 @@ def default_ipn_events() -> list[str]:
     ]
 
 
-def json_body(payload: dict[str, Any] | None) -> str:
+def json_body(payload: Optional[dict[str, Any]]) -> str:
     return "" if payload is None else json.dumps(payload, separators=(",", ":"), ensure_ascii=False)
 
 
-def hmac_headers(public_key: str, secret_key: str, body: str, idempotency_key: str | None = None) -> dict[str, str]:
+def hmac_headers(public_key: str, secret_key: str, body: str, idempotency_key: Optional[str] = None) -> dict[str, str]:
     timestamp = str(int(time.time()))
     nonce = secrets.token_hex(16)
     signature = hmac.new(secret_key.encode(), f"{timestamp}.{nonce}.{body}".encode(), hashlib.sha256).hexdigest()
@@ -49,7 +49,7 @@ def hmac_headers(public_key: str, secret_key: str, body: str, idempotency_key: s
     return headers
 
 
-def json_request(method: str, url: str, headers: dict[str, str] | None = None, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+def json_request(method: str, url: str, headers: Optional[dict[str, str]] = None, payload: Optional[dict[str, Any]] = None) -> dict[str, Any]:
     body = json_body(payload)
     request_headers = {"Accept": "application/json", "Content-Type": "application/json"}
     request_headers.update(headers or {})
