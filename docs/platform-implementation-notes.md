@@ -6,12 +6,15 @@ This repository follows each platform's payment-extension conventions as closely
 
 Implemented in `plugins/woocommerce/payxcommerce-gateway.php`.
 
-- Registers a `WC_Payment_Gateway` payment method.
+- Uses a modular plugin structure with bootstrap, autoloader, settings, SDK factory, gateway, order helpers, webhook handler, and Blocks integration files.
+- Loads the PayXCommerce PHP SDK through Composer or the local monorepo SDK during development.
+- Registers a `WC_Payment_Gateway` payment method and WooCommerce Blocks payment method.
 - Uses WC-API callback route `?wc-api=payxcommerce` for PayXCommerce IPN/webhooks.
 - Validates HMAC or Developer App Bearer credentials when settings are saved and the gateway is enabled.
 - Keeps password fields when left blank during settings updates.
+- Uses configurable public brand name, checkout title, description, and button text.
 - Hides the method at checkout when currency, billing country, min amount, max amount, or missing setup makes it unavailable.
-- Creates PayXCommerce hosted checkout payment requests and redirects customers to PayXCommerce.
+- Creates PayXCommerce hosted checkout payment requests and redirects customers to hosted checkout.
 - Verifies webhook signatures before updating WooCommerce orders.
 - Stores PayXCommerce request, invoice, transaction, payment, settlement, and event metadata on the order.
 - Supports admin refund requests using the PayXCommerce refund API.
