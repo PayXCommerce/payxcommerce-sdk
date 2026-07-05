@@ -38,9 +38,18 @@ if (!hash_equals($expected, $signature)) {
     exit;
 }
 
-// TODO: Store event_id and skip duplicates before updating local order status.
-// TODO: Map event_type to your local order lifecycle.
+$eventType = (string) ($payload['event_type'] ?? '');
+$successfulPaymentEvents = ['payment.succeeded', 'payment.success'];
+$cancelledPaymentEvents = ['payment.cancelled', 'payment.canceled', 'payment.expired'];
+$refundEvents = ['refund.succeeded', 'refund.success', 'payment.refunded'];
+
+// Store event_id and skip duplicates before updating local order status.
+// Then map event_type to your local lifecycle. Example:
+// - payment.succeeded/payment.success: mark paid
+// - payment.failed: mark failed
+// - payment.cancelled/payment.expired: mark cancelled
+// - refund.succeeded/payment.refunded: mark refunded or append refund note
+// - chargeback.created/dispute.created: mark under review/on hold
 
 http_response_code(200);
-echo 'PayXCommerce webhook verified: ' . ($payload['event_type'] ?? 'unknown');
-
+echo 'PayXCommerce webhook verified: ' . ($eventType ?: 'unknown');

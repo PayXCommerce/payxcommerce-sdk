@@ -47,7 +47,28 @@ $paymentRequest = $client->paymentRequests()->create([
         'email' => 'jane@example.com',
         'country' => 'United States',
     ],
+    'ipn_events' => \PayXCommerce\Webhooks\EventTypes::defaultSubscriptions(),
 ]);
+```
+
+## Webhook Events
+
+Use `PayXCommerce\Webhooks\EventTypes` to avoid hard-coding event names. It includes current event names and helper methods for legacy aliases such as `payment.success` and `refund.success`.
+
+```php
+use PayXCommerce\Webhooks\EventTypes;
+
+if (EventTypes::isSuccessfulPayment($payload['event_type'] ?? '')) {
+    // Mark the local order paid.
+}
+```
+
+## Redacted Logging
+
+Use `PayXCommerce\Util\Redactor` before writing API errors or webhook details to application logs.
+
+```php
+$safeMessage = \PayXCommerce\Util\Redactor::text($exception->getMessage());
 ```
 
 ## Run Tests
@@ -55,4 +76,3 @@ $paymentRequest = $client->paymentRequests()->create([
 ```bash
 php tests/run.php
 ```
-

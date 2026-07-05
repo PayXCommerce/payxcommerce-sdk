@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PayXCommerce\WooCommerce\Webhook;
 
+use PayXCommerce\Webhooks\EventTypes;
 use PayXCommerce\Webhooks\Verifier;
 use PayXCommerce\WooCommerce\Order\Metadata;
 use PayXCommerce\WooCommerce\Support\Logger;
@@ -95,12 +96,12 @@ final class Handler
             }
         }
 
-        match ($eventType) {
-            'payment.success', 'payment.succeeded' => $order->payment_complete((string) ($payload['transaction_reference'] ?? '')),
-            'payment.failed' => $order->update_status('failed', __('Payment failed.', 'payxcommerce-gateway')),
-            'payment.cancelled', 'payment.canceled', 'payment.expired' => $order->update_status('cancelled', __('Payment cancelled or expired.', 'payxcommerce-gateway')),
-            'refund.success', 'refund.succeeded', 'payment.refunded' => $order->add_order_note(__('Refund completed.', 'payxcommerce-gateway')),
-            'chargeback.created', 'dispute.created' => $order->update_status('on-hold', __('Dispute or chargeback created.', 'payxcommerce-gateway')),
+        match (true) {
+            EventTypes::isSuccessfulPayment($eventType) => $order->payment_complete((string) ($payload['transaction_reference'] ?? '')),
+            EventTypes::isFailedPayment($eventType) => $order->update_status('failed', __('Payment failed.', 'payxcommerce-gateway')),
+            EventTypes::isCancelledPayment($eventType) => $order->update_status('cancelled', __('Payment cancelled or expired.', 'payxcommerce-gateway')),
+            EventTypes::isRefundCompleted($eventType) => $order->add_order_note(__('Refund completed.', 'payxcommerce-gateway')),
+            EventTypes::isDisputeOrChargeback($eventType) => $order->update_status('on-hold', __('Dispute or chargeback created.', 'payxcommerce-gateway')),
             default => $order->add_order_note(sprintf(__('Payment event received: %s', 'payxcommerce-gateway'), $eventType)),
         };
     }

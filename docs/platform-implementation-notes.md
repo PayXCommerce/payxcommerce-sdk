@@ -8,6 +8,7 @@ Implemented in `plugins/woocommerce/payxcommerce-gateway.php`.
 
 - Uses a modular plugin structure with bootstrap, autoloader, settings, SDK factory, gateway, order helpers, webhook handler, and Blocks integration files.
 - Loads the PayXCommerce PHP SDK through Composer or the local monorepo SDK during development.
+- Uses SDK event catalog and redaction utilities to avoid duplicated webhook names and unsafe debug logging.
 - Registers a `WC_Payment_Gateway` payment method and WooCommerce Blocks payment method.
 - Uses WC-API callback route `?wc-api=payxcommerce` for PayXCommerce IPN/webhooks.
 - Validates HMAC or Developer App Bearer credentials when settings are saved and the gateway is enabled.

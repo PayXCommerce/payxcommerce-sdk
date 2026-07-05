@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace PayXCommerce\WooCommerce\Support;
 
+use PayXCommerce\Util\Redactor;
+
 final class Logger
 {
     public function __construct(private readonly bool $enabled)
@@ -15,11 +17,6 @@ final class Logger
         if (!$this->enabled || !function_exists('wc_get_logger')) {
             return;
         }
-        wc_get_logger()->info($this->redact($message), ['source' => 'payxcommerce'] + $context);
-    }
-
-    private function redact(string $message): string
-    {
-        return preg_replace('/(secret|token|signature|authorization|client_secret|secret_key|webhook_secret)([^\s]*)/i', '$1[redacted]', $message) ?: $message;
+        wc_get_logger()->info(Redactor::text($message), ['source' => 'payxcommerce'] + Redactor::context($context));
     }
 }

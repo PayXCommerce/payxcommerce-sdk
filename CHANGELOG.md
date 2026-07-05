@@ -12,3 +12,4 @@
 - Refactored OpenCart 3 and OpenCart 4 around reusable PayXCommerce API client libraries with credential validation, configurable public checkout text, current event names, improved order reference lookup, and webhook processing state tracking.
 - Upgraded Magento 2 with module config, encrypted settings, checkout renderer, hosted checkout redirect controller, API client, availability checks, and webhook controller.
 - Refactored Magento 2 around dedicated config, API client, request builder, webhook verifier, webhook processor, and logger services with configurable public checkout text, required-credential enablement guard, CSRF-aware signed webhook endpoint, current event names, and safer failure logging.
+- Added PHP SDK webhook event catalog and log redaction utilities, refreshed raw PHP examples to current event names, and wired WooCommerce to use shared SDK event/redaction helpers.

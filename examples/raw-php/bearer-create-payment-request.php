@@ -16,6 +16,13 @@ $payload = [
         'email' => 'customer@example.com',
         'country' => 'United States',
     ],
+    'merchant_reference' => 'CRM-1002',
+    'merchant_order_id' => 'ORDER-1002',
+    'success_url' => 'https://example.com/payment/success',
+    'failed_url' => 'https://example.com/payment/failed',
+    'cancel_url' => 'https://example.com/payment/cancel',
+    'webhook_url' => 'https://example.com/payxcommerce/webhook',
+    'ipn_events' => payx_default_ipn_events(),
     'metadata' => ['source' => 'raw-php-bearer-example'],
     'is_test' => true,
 ];
@@ -26,4 +33,3 @@ $headers = [
 ];
 
 payx_print_response(payx_json_request('POST', $baseUrl . '/payment-requests', $headers, $payload));
-

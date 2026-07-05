@@ -61,9 +61,27 @@ function payx_hmac_headers(string $publicKey, string $secretKey, string $body, ?
     return $headers;
 }
 
+function payx_default_ipn_events(): array
+{
+    return [
+        'payment.succeeded',
+        'payment.failed',
+        'payment.cancelled',
+        'payment.expired',
+        'refund.succeeded',
+        'payment.refunded',
+        'chargeback.created',
+        'dispute.created',
+    ];
+}
+
+function payx_redact(string $message): string
+{
+    return preg_replace('/(secret|token|signature|authorization|password|key|client_secret|secret_key|webhook_secret)([^\s:=]*)?([:=]\s*)?([A-Za-z0-9_\-.!@$%^&*+\/=]+)/i', '$1$2$3[redacted]', $message) ?: $message;
+}
+
 function payx_print_response(array $response): void
 {
     echo "HTTP Status: {$response['status']}\n";
     echo json_encode($response['body'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
 }
-

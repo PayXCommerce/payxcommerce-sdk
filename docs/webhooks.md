@@ -33,10 +33,17 @@ Webhook handlers must:
 
 Common event types:
 
-- `payment.success`
+- `payment.succeeded`
 - `payment.failed`
 - `payment.cancelled`
 - `payment.expired`
-- `refund.success`
+- `refund.succeeded`
+- `payment.refunded`
 - `chargeback.created`
+- `dispute.created`
 
+Legacy aliases may still be received by older integrations:
+
+- `payment.success`
+- `payment.canceled`
+- `refund.success`

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PayXCommerce\WooCommerce\Order;
 
+use PayXCommerce\Webhooks\EventTypes;
 use WC_Order;
 
 final class PayloadBuilder
@@ -28,7 +29,7 @@ final class PayloadBuilder
             'failed_url' => $order->get_cancel_order_url_raw(),
             'cancel_url' => $order->get_cancel_order_url_raw(),
             'webhook_url' => $webhookUrl,
-            'ipn_events' => ['payment.succeeded', 'payment.failed', 'payment.cancelled', 'payment.expired', 'refund.succeeded', 'payment.refunded', 'chargeback.created', 'dispute.created'],
+            'ipn_events' => EventTypes::defaultSubscriptions(),
             'metadata' => [
                 'platform' => 'woocommerce',
                 'platform_version' => defined('WC_VERSION') ? WC_VERSION : '',

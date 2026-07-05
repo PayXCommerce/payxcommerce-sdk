@@ -24,7 +24,7 @@ $payload = [
     'failed_url' => 'https://example.com/payment/failed',
     'cancel_url' => 'https://example.com/payment/cancel',
     'webhook_url' => 'https://example.com/payxcommerce/webhook',
-    'ipn_events' => ['payment.success', 'payment.failed', 'refund.success', 'chargeback.created'],
+    'ipn_events' => payx_default_ipn_events(),
     'metadata' => ['source' => 'raw-php-example'],
     'is_test' => true,
 ];
@@ -33,4 +33,3 @@ $body = json_encode($payload, JSON_UNESCAPED_SLASHES);
 $headers = payx_hmac_headers($publicKey, $secretKey, $body, 'raw-php-order-1001-' . time());
 
 payx_print_response(payx_json_request('POST', $baseUrl . '/payment-requests', $headers, $payload));
-
