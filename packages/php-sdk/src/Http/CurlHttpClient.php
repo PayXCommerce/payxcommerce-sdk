@@ -66,22 +66,41 @@ final class CurlHttpClient implements HttpClientInterface
 
     private function throwForStatus(int $status, array $decoded, string $rawBody): never
     {
-        $message = (string) ($decoded['message'] ?? $decoded['error'] ?? 'PayXCommerce API error.');
+        $errors = isset($decoded['errors']) && is_array($decoded['errors']) ? $decoded['errors'] : [];
+        $message = $this->messageWithErrors((string) ($decoded['message'] ?? $decoded['error'] ?? 'PayXCommerce API error.'), $errors);
         $code = isset($decoded['error_code']) ? (string) $decoded['error_code'] : null;
 
         $exception = match ($code) {
-            'authentication_failed', 'signature_invalid', 'timestamp_expired', 'nonce_reused' => new AuthException($message, $status, $code, $rawBody),
-            'validation_failed', 'currency_not_supported', 'amount_out_of_range' => new ValidationException($message, $status, $code, $rawBody),
-            'rate_limit_exceeded' => new RateLimitException($message, $status, $code, $rawBody),
+            'authentication_failed', 'signature_invalid', 'timestamp_expired', 'nonce_reused' => new AuthException($message, $status, $code, $rawBody, $errors),
+            'validation_failed', 'currency_not_supported', 'amount_out_of_range' => new ValidationException($message, $status, $code, $rawBody, $errors),
+            'rate_limit_exceeded' => new RateLimitException($message, $status, $code, $rawBody, $errors),
             default => match ($status) {
-                401, 403 => new AuthException($message, $status, $code, $rawBody),
-                422 => new ValidationException($message, $status, $code, $rawBody),
-                429 => new RateLimitException($message, $status, $code, $rawBody),
-                default => new ApiException($message, $status, $code, $rawBody),
+                401, 403 => new AuthException($message, $status, $code, $rawBody, $errors),
+                422 => new ValidationException($message, $status, $code, $rawBody, $errors),
+                429 => new RateLimitException($message, $status, $code, $rawBody, $errors),
+                default => new ApiException($message, $status, $code, $rawBody, $errors),
             },
         };
 
         throw $exception;
     }
-}
 
+    private function messageWithErrors(string $message, array $errors): string
+    {
+        $details = [];
+        foreach ($errors as $field => $fieldErrors) {
+            foreach ((array) $fieldErrors as $fieldError) {
+                $fieldError = trim((string) $fieldError);
+                if ($fieldError !== '') {
+                    $details[] = $field . ': ' . $fieldError;
+                }
+            }
+        }
+
+        if (!$details) {
+            return $message;
+        }
+
+        return rtrim($message, '.') . '. ' . implode(' ', array_slice($details, 0, 8));
+    }
+}

@@ -14,3 +14,24 @@ spl_autoload_register(static function (string $class): void {
         require $path;
     }
 });
+
+
+function payx_print_sdk_exception(\PayXCommerce\Exceptions\ApiException $exception): void
+{
+    fwrite(STDERR, 'PayXCommerce API error: ' . $exception->getMessage() . PHP_EOL);
+    if ($exception->statusCode() !== null) {
+        fwrite(STDERR, 'HTTP status: ' . $exception->statusCode() . PHP_EOL);
+    }
+    if ($exception->payxErrorCode() !== null) {
+        fwrite(STDERR, 'Error code: ' . $exception->payxErrorCode() . PHP_EOL);
+    }
+    if ($exception->errors()) {
+        fwrite(STDERR, 'Validation details:' . PHP_EOL);
+        foreach ($exception->errors() as $field => $messages) {
+            foreach ((array) $messages as $message) {
+                fwrite(STDERR, ' - ' . $field . ': ' . $message . PHP_EOL);
+            }
+        }
+    }
+    exit(1);
+}

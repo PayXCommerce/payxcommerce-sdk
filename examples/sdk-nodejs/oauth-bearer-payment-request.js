@@ -1,5 +1,18 @@
 'use strict';
 
+function printSdkError(error) {
+  console.error(`PayXCommerce API error: ${error.message}`);
+  if (error.statusCode) console.error(`HTTP status: ${error.statusCode}`);
+  if (error.payxErrorCode) console.error(`Error code: ${error.payxErrorCode}`);
+  if (error.errors && Object.keys(error.errors).length) {
+    console.error('Validation details:');
+    Object.entries(error.errors).forEach(([field, messages]) => {
+      [].concat(messages || []).forEach((message) => console.error(` - ${field}: ${message}`));
+    });
+  }
+  process.exitCode = 1;
+}
+
 const { BearerTokenAuth, Client, ClientCredentials, Config, eventTypes } = require('../../packages/node-sdk/src');
 
 (async () => {
@@ -16,4 +29,4 @@ const { BearerTokenAuth, Client, ClientCredentials, Config, eventTypes } = requi
     is_test: true
   });
   console.log(response.checkout_url);
-})();
+})().catch(printSdkError);

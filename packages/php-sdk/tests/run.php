@@ -17,6 +17,9 @@ spl_autoload_register(function (string $class): void {
 
 use PayXCommerce\Auth\HmacAuth;
 use PayXCommerce\Exceptions\WebhookVerificationException;
+use PayXCommerce\Exceptions\ValidationException;
+use PayXCommerce\Config;
+use PayXCommerce\Http\CurlHttpClient;
 use PayXCommerce\Util\Redactor;
 use PayXCommerce\Webhooks\EventTypes;
 use PayXCommerce\Webhooks\Verifier;
@@ -70,6 +73,22 @@ try {
     throw new RuntimeException('Invalid webhook signature should fail.');
 } catch (WebhookVerificationException) {
     assertTrueValue(true, 'Invalid webhook signature failed as expected.');
+}
+
+$httpClient = new CurlHttpClient(new Config());
+$throwForStatus = new ReflectionMethod($httpClient, 'throwForStatus');
+$throwForStatus->setAccessible(true);
+try {
+    $throwForStatus->invoke($httpClient, 422, [
+        'message' => 'The given data was invalid.',
+        'errors' => ['customer.country' => ['The customer.country field is required.']],
+    ], '{"message":"The given data was invalid."}');
+    throw new RuntimeException('Validation response should throw a ValidationException.');
+} catch (ReflectionException $exception) {
+    throw $exception;
+} catch (ValidationException $exception) {
+    assertTrueValue(str_contains($exception->getMessage(), 'customer.country: The customer.country field is required.'), 'Validation exception should include field-level API errors.');
+    assertSameValue(['customer.country' => ['The customer.country field is required.']], $exception->errors(), 'Validation exception should expose structured errors.');
 }
 
 echo "PayXCommerce PHP SDK tests passed ({$tests} assertions).\n";

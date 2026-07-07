@@ -1,12 +1,13 @@
 'use strict';
 
 class ApiError extends Error {
-  constructor(message, statusCode = null, payxErrorCode = null, rawResponseBody = null) {
+  constructor(message, statusCode = null, payxErrorCode = null, rawResponseBody = null, errors = {}) {
     super(message);
     this.name = this.constructor.name;
     this.statusCode = statusCode;
     this.payxErrorCode = payxErrorCode;
     this.rawResponseBody = rawResponseBody;
+    this.errors = errors || {};
   }
 }
 class AuthError extends ApiError {}

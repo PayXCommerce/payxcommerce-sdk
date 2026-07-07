@@ -10,7 +10,8 @@ import hashlib
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 from payxcommerce.auth.hmac import HmacAuth
-from payxcommerce.exceptions import WebhookVerificationException
+from payxcommerce.exceptions import ValidationException, WebhookVerificationException
+from payxcommerce.http.client import HttpClient
 from payxcommerce.util import redactor
 from payxcommerce.webhooks import event_types
 from payxcommerce.webhooks.verifier import Verifier
@@ -52,5 +53,15 @@ try:
     raise RuntimeError("Invalid webhook signature should fail.")
 except WebhookVerificationException:
     assert_true(True, "Invalid webhook signature failed as expected.")
+
+try:
+    HttpClient()._throw_for_status(422, {
+        "message": "The given data was invalid.",
+        "errors": {"customer.country": ["The customer.country field is required."]},
+    }, '{"message":"The given data was invalid."}')
+    raise RuntimeError("Validation response should fail.")
+except ValidationException as error:
+    assert_true("customer.country: The customer.country field is required." in str(error), "Validation error should include field details.")
+    assert_same("The customer.country field is required.", error.errors["customer.country"][0], "Validation exception should expose structured errors.")
 
 print(f"PayXCommerce Python SDK tests passed ({tests} assertions).")

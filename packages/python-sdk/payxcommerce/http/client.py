@@ -34,7 +34,8 @@ class HttpClient:
         return decoded if isinstance(decoded, dict) else {"data": decoded}
 
     def _throw_for_status(self, status: int, decoded: dict[str, Any], raw_body: str):
-        message = str(decoded.get("message") or decoded.get("error") or "PayXCommerce API error.")
+        errors = decoded.get("errors") if isinstance(decoded.get("errors"), dict) else {}
+        message = self._message_with_errors(str(decoded.get("message") or decoded.get("error") or "PayXCommerce API error."), errors)
         code = decoded.get("error_code")
         exception_type = ApiException
         if code in {"authentication_failed", "signature_invalid", "timestamp_expired", "nonce_reused"} or status in {401, 403}:
@@ -43,4 +44,19 @@ class HttpClient:
             exception_type = ValidationException
         elif code == "rate_limit_exceeded" or status == 429:
             exception_type = RateLimitException
-        raise exception_type(message, status, str(code) if code else None, raw_body)
+        raise exception_type(message, status, str(code) if code else None, raw_body, errors)
+
+    def _message_with_errors(self, message: str, errors: dict[str, Any]) -> str:
+        details: list[str] = []
+        for field, field_errors in errors.items():
+            if not isinstance(field_errors, list):
+                field_errors = [field_errors]
+            for field_error in field_errors:
+                text = str(field_error or "").strip()
+                if text:
+                    details.append(f"{field}: {text}")
+
+        if not details:
+            return message
+
+        return message.rstrip(".") + ". " + " ".join(details[:8])
