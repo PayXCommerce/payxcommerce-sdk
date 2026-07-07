@@ -56,5 +56,6 @@ final class Plugin
             return;
         }
         wp_enqueue_style('payxcommerce-wc-admin', PAYXCOMMERCE_WC_URL . 'assets/css/admin.css', [], PAYXCOMMERCE_WC_VERSION);
+        wp_enqueue_script('payxcommerce-wc-admin', PAYXCOMMERCE_WC_URL . 'assets/js/admin.js', ['jquery'], PAYXCOMMERCE_WC_VERSION, true);
     }
 }

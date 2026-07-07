@@ -8,12 +8,12 @@
       <div class="panel panel-default"><div class="panel-heading"><h3 class="panel-title">PayXCommerce Settings</h3></div><div class="panel-body">
         <div class="form-group"><label class="col-sm-2 control-label">Status</label><div class="col-sm-10"><select name="payment_payxcommerce_status" class="form-control"><option value="1" {% if payment_payxcommerce_status %}selected{% endif %}>Enabled</option><option value="0" {% if not payment_payxcommerce_status %}selected{% endif %}>Disabled</option></select></div></div>
         <div class="form-group"><label class="col-sm-2 control-label">Environment</label><div class="col-sm-10"><select name="payment_payxcommerce_environment" class="form-control"><option value="test" {% if payment_payxcommerce_environment != 'live' %}selected{% endif %}>Test</option><option value="live" {% if payment_payxcommerce_environment == 'live' %}selected{% endif %}>Live</option></select></div></div>
-        <div class="form-group"><label class="col-sm-2 control-label">Authentication Method</label><div class="col-sm-10"><select name="payment_payxcommerce_auth_method" class="form-control"><option value="hmac" {% if payment_payxcommerce_auth_method != 'bearer' %}selected{% endif %}>HMAC API Key</option><option value="bearer" {% if payment_payxcommerce_auth_method == 'bearer' %}selected{% endif %}>Developer App Bearer Token</option></select></div></div>
+        <div class="form-group"><label class="col-sm-2 control-label">Authentication Method</label><div class="col-sm-10"><select name="payment_payxcommerce_auth_method" class="form-control" id="input-payxcommerce-auth-method"><option value="hmac" {% if payment_payxcommerce_auth_method != 'bearer' %}selected{% endif %}>HMAC API Key</option><option value="bearer" {% if payment_payxcommerce_auth_method == 'bearer' %}selected{% endif %}>Developer App OAuth</option></select><p class="help-block">Only the required credentials for the selected authentication method are shown.</p></div></div>
         <div class="form-group"><label class="col-sm-2 control-label">API Base URL</label><div class="col-sm-10"><input type="text" name="payment_payxcommerce_base_url" value="{{ payment_payxcommerce_base_url }}" class="form-control"></div></div>
-        <div class="form-group"><label class="col-sm-2 control-label">Public Key</label><div class="col-sm-10"><input type="text" name="payment_payxcommerce_public_key" value="{{ payment_payxcommerce_public_key }}" class="form-control"></div></div>
-        <div class="form-group"><label class="col-sm-2 control-label">Secret Key</label><div class="col-sm-10"><input type="password" name="payment_payxcommerce_secret_key" value="" placeholder="Leave blank to keep current secret" class="form-control"></div></div>
-        <div class="form-group"><label class="col-sm-2 control-label">Client ID</label><div class="col-sm-10"><input type="text" name="payment_payxcommerce_client_id" value="{{ payment_payxcommerce_client_id }}" class="form-control"></div></div>
-        <div class="form-group"><label class="col-sm-2 control-label">Client Secret</label><div class="col-sm-10"><input type="password" name="payment_payxcommerce_client_secret" value="" placeholder="Leave blank to keep current secret" class="form-control"></div></div>
+        <div class="form-group payx-auth-field payx-auth-hmac"><label class="col-sm-2 control-label">Public Key</label><div class="col-sm-10"><input type="text" name="payment_payxcommerce_public_key" value="{{ payment_payxcommerce_public_key }}" class="form-control"></div></div>
+        <div class="form-group payx-auth-field payx-auth-hmac"><label class="col-sm-2 control-label">Secret Key</label><div class="col-sm-10"><input type="password" name="payment_payxcommerce_secret_key" value="" placeholder="Leave blank to keep current secret" class="form-control"></div></div>
+        <div class="form-group payx-auth-field payx-auth-bearer"><label class="col-sm-2 control-label">Client ID</label><div class="col-sm-10"><input type="text" name="payment_payxcommerce_client_id" value="{{ payment_payxcommerce_client_id }}" class="form-control"></div></div>
+        <div class="form-group payx-auth-field payx-auth-bearer"><label class="col-sm-2 control-label">Client Secret</label><div class="col-sm-10"><input type="password" name="payment_payxcommerce_client_secret" value="" placeholder="Leave blank to keep current secret" class="form-control"></div></div>
         <div class="form-group"><label class="col-sm-2 control-label">Webhook Secret</label><div class="col-sm-10"><input type="password" name="payment_payxcommerce_webhook_secret" value="" placeholder="Leave blank to keep current secret" class="form-control"></div></div>
         <div class="form-group"><label class="col-sm-2 control-label">Public Brand Name</label><div class="col-sm-10"><input type="text" name="payment_payxcommerce_brand_name" value="{{ payment_payxcommerce_brand_name }}" class="form-control"><p class="help-block">Shown to customers. Use {brand} in title, description, and button text.</p></div></div>
         <div class="form-group"><label class="col-sm-2 control-label">Payment Title</label><div class="col-sm-10"><input type="text" name="payment_payxcommerce_title" value="{{ payment_payxcommerce_title }}" class="form-control"></div></div>
@@ -43,4 +43,23 @@
     </form>
   </div>
 </div>
+<script>
+(function () {
+  function togglePayXCommerceAuthFields() {
+    var select = document.getElementById('input-payxcommerce-auth-method');
+    if (!select) {
+      return;
+    }
+    var isBearer = select.value === 'bearer';
+    document.querySelectorAll('.payx-auth-hmac').forEach(function (row) { row.style.display = isBearer ? 'none' : ''; });
+    document.querySelectorAll('.payx-auth-bearer').forEach(function (row) { row.style.display = isBearer ? '' : 'none'; });
+  }
+  document.addEventListener('DOMContentLoaded', togglePayXCommerceAuthFields);
+  document.addEventListener('change', function (event) {
+    if (event.target && event.target.id === 'input-payxcommerce-auth-method') {
+      togglePayXCommerceAuthFields();
+    }
+  });
+})();
+</script>
 {{ footer }}

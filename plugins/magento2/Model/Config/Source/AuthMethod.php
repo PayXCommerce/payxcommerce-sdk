@@ -9,6 +9,6 @@ class AuthMethod implements ArrayInterface
 {
     public function toOptionArray(): array
     {
-        return [['value' => 'hmac', 'label' => __('HMAC API Key')], ['value' => 'bearer', 'label' => __('Developer App Bearer Token')]];
+        return [['value' => 'hmac', 'label' => __('HMAC API Key')], ['value' => 'bearer', 'label' => __('Developer App OAuth')]];
     }
 }

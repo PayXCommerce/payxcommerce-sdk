@@ -3,7 +3,7 @@
  * Plugin Name: PayXCommerce Gateway for WooCommerce
  * Plugin URI:  https://payxcommerce.com/docs
  * Description: Hosted checkout payments for WooCommerce using PayXCommerce payment requests, signed webhooks, refunds, and secure API authentication.
- * Version:     0.3.0
+ * Version:     0.3.1
  * Author:      PayXCommerce
  * Author URI:  https://payxcommerce.com/
  * License:     MIT
@@ -19,7 +19,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('PAYXCOMMERCE_WC_VERSION', '0.3.0');
+define('PAYXCOMMERCE_WC_VERSION', '0.3.1');
 define('PAYXCOMMERCE_WC_FILE', __FILE__);
 define('PAYXCOMMERCE_WC_PATH', plugin_dir_path(__FILE__));
 define('PAYXCOMMERCE_WC_URL', plugin_dir_url(__FILE__));

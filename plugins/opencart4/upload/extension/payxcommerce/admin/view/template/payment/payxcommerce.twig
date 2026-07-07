@@ -8,11 +8,9 @@
       <div class="card"><div class="card-header"><i class="fas fa-credit-card"></i> Settings</div><div class="card-body">
         <div class="row mb-3"><label class="col-sm-2 col-form-label">Status</label><div class="col-sm-10"><select name="payment_payxcommerce_status" class="form-select"><option value="1" {% if payment_payxcommerce_status %}selected{% endif %}>Enabled</option><option value="0" {% if not payment_payxcommerce_status %}selected{% endif %}>Disabled</option></select></div></div>
         <div class="row mb-3"><label class="col-sm-2 col-form-label">Environment</label><div class="col-sm-10"><select name="payment_payxcommerce_environment" class="form-select"><option value="test" {% if payment_payxcommerce_environment != 'live' %}selected{% endif %}>Test</option><option value="live" {% if payment_payxcommerce_environment == 'live' %}selected{% endif %}>Live</option></select></div></div>
-        <div class="row mb-3"><label class="col-sm-2 col-form-label">Auth Method</label><div class="col-sm-10"><select name="payment_payxcommerce_auth_method" class="form-select"><option value="hmac" {% if payment_payxcommerce_auth_method != 'bearer' %}selected{% endif %}>HMAC API Key</option><option value="bearer" {% if payment_payxcommerce_auth_method == 'bearer' %}selected{% endif %}>Developer App Bearer Token</option></select></div></div>
+        <div class="row mb-3"><label class="col-sm-2 col-form-label">Auth Method</label><div class="col-sm-10"><select name="payment_payxcommerce_auth_method" class="form-select" id="input-payxcommerce-auth-method"><option value="hmac" {% if payment_payxcommerce_auth_method != 'bearer' %}selected{% endif %}>HMAC API Key</option><option value="bearer" {% if payment_payxcommerce_auth_method == 'bearer' %}selected{% endif %}>Developer App OAuth</option></select><div class="form-text">Only the required credentials for the selected authentication method are shown.</div></div></div>
         {% set text_fields = [
           {'field':'base_url','label':'API Base URL','value':payment_payxcommerce_base_url},
-          {'field':'public_key','label':'Public Key','value':payment_payxcommerce_public_key},
-          {'field':'client_id','label':'Client ID','value':payment_payxcommerce_client_id},
           {'field':'brand_name','label':'Public Brand Name','value':payment_payxcommerce_brand_name},
           {'field':'title','label':'Payment Title','value':payment_payxcommerce_title},
           {'field':'description','label':'Payment Description','value':payment_payxcommerce_description},
@@ -26,6 +24,10 @@
         {% for item in text_fields %}
         <div class="row mb-3"><label class="col-sm-2 col-form-label">{{ item.label }}</label><div class="col-sm-10"><input type="text" name="payment_payxcommerce_{{ item.field }}" value="{{ item.value }}" class="form-control"></div></div>
         {% endfor %}
+        <div class="row mb-3 payx-auth-field payx-auth-hmac"><label class="col-sm-2 col-form-label">Public Key</label><div class="col-sm-10"><input type="text" name="payment_payxcommerce_public_key" value="{{ payment_payxcommerce_public_key }}" class="form-control"></div></div>
+        <div class="row mb-3 payx-auth-field payx-auth-hmac"><label class="col-sm-2 col-form-label">Secret Key</label><div class="col-sm-10"><input type="password" name="payment_payxcommerce_secret_key" value="" placeholder="Leave blank to keep current secret" class="form-control"></div></div>
+        <div class="row mb-3 payx-auth-field payx-auth-bearer"><label class="col-sm-2 col-form-label">Client ID</label><div class="col-sm-10"><input type="text" name="payment_payxcommerce_client_id" value="{{ payment_payxcommerce_client_id }}" class="form-control"></div></div>
+        <div class="row mb-3 payx-auth-field payx-auth-bearer"><label class="col-sm-2 col-form-label">Client Secret</label><div class="col-sm-10"><input type="password" name="payment_payxcommerce_client_secret" value="" placeholder="Leave blank to keep current secret" class="form-control"></div></div>
 
         <div class="row mb-3"><label class="col-sm-2 col-form-label">Geo Zone</label><div class="col-sm-10"><select name="payment_payxcommerce_geo_zone_id" class="form-select"><option value="0">All Zones</option>{% for geo_zone in geo_zones %}<option value="{{ geo_zone.geo_zone_id }}" {% if geo_zone.geo_zone_id == payment_payxcommerce_geo_zone_id %}selected{% endif %}>{{ geo_zone.name }}</option>{% endfor %}</select></div></div>
         {% set status_fields = [
@@ -40,12 +42,29 @@
         {% for item in status_fields %}
         <div class="row mb-3"><label class="col-sm-2 col-form-label">{{ item.label }}</label><div class="col-sm-10"><select name="payment_payxcommerce_{{ item.field }}" class="form-select">{% for status in order_statuses %}<option value="{{ status.order_status_id }}" {% if item.value == status.order_status_id %}selected{% endif %}>{{ status.name }}</option>{% endfor %}</select></div></div>
         {% endfor %}
-        <div class="row mb-3"><label class="col-sm-2 col-form-label">Secret Key</label><div class="col-sm-10"><input type="password" name="payment_payxcommerce_secret_key" value="" placeholder="Leave blank to keep current secret" class="form-control"></div></div>
-        <div class="row mb-3"><label class="col-sm-2 col-form-label">Client Secret</label><div class="col-sm-10"><input type="password" name="payment_payxcommerce_client_secret" value="" placeholder="Leave blank to keep current secret" class="form-control"></div></div>
         <div class="row mb-3"><label class="col-sm-2 col-form-label">Webhook Secret</label><div class="col-sm-10"><input type="password" name="payment_payxcommerce_webhook_secret" value="" placeholder="Leave blank to keep current secret" class="form-control"></div></div>
         <div class="text-end"><button type="submit" class="btn btn-primary">Save</button> <a href="{{ cancel }}" class="btn btn-light">Cancel</a></div>
       </div></div>
     </form>
   </div>
 </div>
+<script>
+(function () {
+  function togglePayXCommerceAuthFields() {
+    var select = document.getElementById('input-payxcommerce-auth-method');
+    if (!select) {
+      return;
+    }
+    var isBearer = select.value === 'bearer';
+    document.querySelectorAll('.payx-auth-hmac').forEach(function (row) { row.style.display = isBearer ? 'none' : ''; });
+    document.querySelectorAll('.payx-auth-bearer').forEach(function (row) { row.style.display = isBearer ? '' : 'none'; });
+  }
+  document.addEventListener('DOMContentLoaded', togglePayXCommerceAuthFields);
+  document.addEventListener('change', function (event) {
+    if (event.target && event.target.id === 'input-payxcommerce-auth-method') {
+      togglePayXCommerceAuthFields();
+    }
+  });
+})();
+</script>
 {{ footer }}

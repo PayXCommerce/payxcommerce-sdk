@@ -142,6 +142,40 @@ final class Gateway extends WC_Payment_Gateway
         return $this->preservePassword('webhook_secret', $value);
     }
 
+    public function generate_payxcommerce_secret_html($key, $data): string
+    {
+        $fieldKey = $this->get_field_key($key);
+        $data = wp_parse_args($data, [
+            'title' => '',
+            'disabled' => false,
+            'class' => '',
+            'css' => '',
+            'placeholder' => '',
+            'type' => 'password',
+            'desc_tip' => false,
+            'description' => '',
+            'custom_attributes' => [],
+        ]);
+        $placeholder = (string) ($data['placeholder'] ?: __('Enter secret', 'payxcommerce-gateway'));
+        if ((string) $this->get_option($key, '') !== '') {
+            $placeholder = __('Stored — leave blank to keep existing', 'payxcommerce-gateway');
+        }
+
+        ob_start();
+        ?>
+        <tr valign="top">
+            <th scope="row" class="titledesc">
+                <label for="<?php echo esc_attr($fieldKey); ?>"><?php echo wp_kses_post($data['title']); ?> <?php echo $this->get_tooltip_html($data); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></label>
+            </th>
+            <td class="forminp">
+                <input class="input-text regular-input <?php echo esc_attr($data['class']); ?>" type="password" name="<?php echo esc_attr($fieldKey); ?>" id="<?php echo esc_attr($fieldKey); ?>" style="<?php echo esc_attr($data['css']); ?>" value="" placeholder="<?php echo esc_attr($placeholder); ?>" <?php disabled($data['disabled'], true); ?> <?php echo $this->get_custom_attribute_html($data); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?> />
+                <?php echo $this->get_description_html($data); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+            </td>
+        </tr>
+        <?php
+        return (string) ob_get_clean();
+    }
+
     public function process_payment($order_id): array
     {
         $order = wc_get_order($order_id);
