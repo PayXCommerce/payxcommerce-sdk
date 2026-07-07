@@ -26,14 +26,11 @@ final class Autoloader
                 return;
             }
 
-            if (class_exists('PayXCommerce\\Client', false)) {
-                return;
-            }
-
             $sdkPrefix = 'PayXCommerce\\';
             if (str_starts_with($class, $sdkPrefix)) {
                 $relative = substr($class, strlen($sdkPrefix));
                 $candidates = [
+                    $pluginPath . 'sdk/payxcommerce-php/src/' . str_replace('\\', '/', $relative) . '.php',
                     $pluginPath . 'vendor/payxcommerce/payxcommerce-php/src/' . str_replace('\\', '/', $relative) . '.php',
                     dirname($pluginPath, 2) . '/packages/php-sdk/src/' . str_replace('\\', '/', $relative) . '.php',
                 ];

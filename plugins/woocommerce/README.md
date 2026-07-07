@@ -2,6 +2,8 @@
 
 WooCommerce payment gateway for PayXCommerce hosted checkout.
 
+The plugin bundles the PayXCommerce PHP SDK so it can be installed through the normal WordPress plugin upload flow without requiring Composer on the merchant site.
+
 ## Structure
 
 ```text
@@ -13,6 +15,7 @@ includes/Gateway/Gateway.php    WooCommerce gateway implementation
 includes/Order/                 Payload and order metadata helpers
 includes/Webhook/Handler.php    Signed webhook/IPN processor
 includes/Blocks/                WooCommerce Blocks payment method support
+sdk/payxcommerce-php/src/       Bundled PayXCommerce PHP SDK
 assets/                         Admin and checkout assets
 ```
 
@@ -38,7 +41,7 @@ assets/                         Admin and checkout assets
 ## Installation
 
 1. Upload the `plugins/woocommerce` directory as a WordPress plugin.
-2. If installing from source, run Composer in the plugin directory or package the SDK with the plugin.
+2. If installing from source, keep the bundled `sdk/payxcommerce-php/src` directory in place, or run Composer in the plugin directory.
 3. Activate the plugin in WordPress Admin.
 4. Go to WooCommerce → Settings → Payments → PayXCommerce.
 5. Enter API credentials and webhook secret.
@@ -47,7 +50,7 @@ assets/                         Admin and checkout assets
 
 ## SDK Loading
 
-The plugin loads the PayXCommerce PHP SDK from Composer when packaged. In this monorepo, it also supports local development loading from `packages/php-sdk/src`.
+The plugin loads the bundled PayXCommerce PHP SDK first, then falls back to Composer, then to the monorepo development SDK path.
 
 ## Webhook URL
 
