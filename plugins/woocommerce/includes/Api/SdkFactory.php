@@ -37,17 +37,21 @@ final class SdkFactory
         $this->client()->balance()->get();
     }
 
+    public function clearAccessTokenCache(): void
+    {
+        delete_transient($this->tokenCacheKey());
+    }
+
     private function accessToken(): string
     {
-        $clientId = $this->option('client_id');
-        $cacheKey = 'payxcommerce_bearer_token_' . md5($clientId);
+        $cacheKey = $this->tokenCacheKey();
         $cached = get_transient($cacheKey);
         if (is_string($cached) && $cached !== '') {
             return $cached;
         }
 
         $oauth = new ClientCredentials(
-            clientId: $clientId,
+            clientId: $this->option('client_id'),
             clientSecret: $this->option('client_secret'),
             config: new Config(baseUrl: $this->option('base_url', Settings::DEFAULT_BASE_URL))
         );
@@ -58,6 +62,15 @@ final class SdkFactory
         }
         set_transient($cacheKey, $token, max(60, (int) ($response['expires_in'] ?? 3600) - 60));
         return $token;
+    }
+
+    private function tokenCacheKey(): string
+    {
+        return 'payxcommerce_bearer_token_' . md5(implode('|', [
+            $this->option('base_url', Settings::DEFAULT_BASE_URL),
+            $this->option('client_id'),
+            Settings::TOKEN_SCOPE,
+        ]));
     }
 
     private function option(string $key, string $default = ''): string

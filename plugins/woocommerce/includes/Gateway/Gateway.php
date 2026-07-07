@@ -10,6 +10,7 @@ use PayXCommerce\WooCommerce\Order\Metadata;
 use PayXCommerce\WooCommerce\Order\PayloadBuilder;
 use PayXCommerce\WooCommerce\Support\Logger;
 use PayXCommerce\WooCommerce\Webhook\Handler;
+use PayXCommerce\Exceptions\AuthException;
 use WC_Order;
 use WC_Payment_Gateway;
 use WP_Error;
@@ -160,10 +161,22 @@ final class Gateway extends WC_Payment_Gateway
         }
 
         try {
-            $response = $this->sdk()->client()->paymentRequests()->create(
-                $this->payloadBuilder->build($order, WC()->api_request_url('payxcommerce'), $this->get_option('environment') !== 'live'),
-                'woocommerce-order-' . $order->get_id() . '-attempt-' . time()
-            );
+            $response = $this->createHostedCheckout($order);
+        } catch (AuthException $exception) {
+            if ($this->get_option('auth_method') === 'bearer') {
+                $this->sdk()->clearAccessTokenCache();
+                try {
+                    $response = $this->createHostedCheckout($order);
+                } catch (\Throwable $retryException) {
+                    $this->logger->info('Create payment request failed after token refresh: ' . $retryException->getMessage());
+                    wc_add_notice(__('Unable to start hosted checkout. Please try again.', 'payxcommerce-gateway'), 'error');
+                    return ['result' => 'failure'];
+                }
+            } else {
+                $this->logger->info('Create payment request failed: ' . $exception->getMessage());
+                wc_add_notice(__('Unable to start hosted checkout. Please try again.', 'payxcommerce-gateway'), 'error');
+                return ['result' => 'failure'];
+            }
         } catch (\Throwable $exception) {
             $this->logger->info('Create payment request failed: ' . $exception->getMessage());
             wc_add_notice(__('Unable to start hosted checkout. Please try again.', 'payxcommerce-gateway'), 'error');
@@ -218,6 +231,14 @@ final class Gateway extends WC_Payment_Gateway
     private function sdk(): SdkFactory
     {
         return new SdkFactory(fn(string $key, string $default = ''): string => (string) $this->get_option($key, $default));
+    }
+
+    private function createHostedCheckout(WC_Order $order): array
+    {
+        return $this->sdk()->client()->paymentRequests()->create(
+            $this->payloadBuilder->build($order, WC()->api_request_url('payxcommerce'), $this->get_option('environment') !== 'live'),
+            'woocommerce-order-' . $order->get_id() . '-attempt-' . time()
+        );
     }
 
     private function orderSupported(WC_Order $order): bool
