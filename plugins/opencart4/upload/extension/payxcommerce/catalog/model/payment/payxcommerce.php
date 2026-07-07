@@ -5,6 +5,8 @@ class Payxcommerce extends \Opencart\System\Engine\Model
 {
     public function getMethods(array $address = []): array
     {
+        $this->load->language('extension/payxcommerce/payment/payxcommerce');
+
         if (!$this->config->get('payment_payxcommerce_status') || !$this->isConfigured()) {
             return [];
         }
@@ -36,15 +38,20 @@ class Payxcommerce extends \Opencart\System\Engine\Model
             return [];
         }
 
-        return [[
-            'code' => 'payxcommerce.payxcommerce',
-            'name' => $this->publicText('payment_payxcommerce_title', 'Pay securely with {brand}'),
-            'option' => [[
-                'code' => 'payxcommerce',
-                'name' => $this->publicText('payment_payxcommerce_title', 'Pay securely with {brand}'),
-            ]],
+        $title = $this->publicText('payment_payxcommerce_title', 'Pay securely with {brand}');
+        $option_data = [
+            'payxcommerce' => [
+                'code' => 'payxcommerce.payxcommerce',
+                'name' => $title,
+            ],
+        ];
+
+        return [
+            'code' => 'payxcommerce',
+            'name' => $title,
+            'option' => $option_data,
             'sort_order' => (int) $this->config->get('payment_payxcommerce_sort_order'),
-        ]];
+        ];
     }
 
     public function savePayxOrder(int $order_id, array $response, string $merchant_reference): void
