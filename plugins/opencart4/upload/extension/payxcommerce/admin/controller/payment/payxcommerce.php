@@ -67,7 +67,7 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
         $data['error_warning'] = $this->error['warning'] ?? '';
         $data['order_statuses'] = $this->model_localisation_order_status->getOrderStatuses();
         $data['geo_zones'] = $this->model_localisation_geo_zone->getGeoZones();
-        $data['webhook_url'] = HTTPS_CATALOG . 'index.php?route=extension/payxcommerce/payment/payxcommerce.webhook';
+        $data['webhook_url'] = $this->catalogUrl() . 'index.php?route=extension/payxcommerce/payment/payxcommerce.webhook';
         $data['action'] = $this->url->link('extension/payxcommerce/payment/payxcommerce', 'user_token=' . $this->session->data['user_token']);
         $data['cancel'] = $this->url->link('marketplace/extension', 'user_token=' . $this->session->data['user_token'] . '&type=payment');
         $data['header'] = $this->load->controller('common/header');
@@ -108,5 +108,24 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
             $this->error['warning'] = $this->language->get('error_permission');
         }
         return !$this->error;
+    }
+
+    private function catalogUrl(): string
+    {
+        if (defined('HTTPS_CATALOG') && HTTPS_CATALOG) {
+            return rtrim((string) HTTPS_CATALOG, '/') . '/';
+        }
+
+        if (defined('HTTP_CATALOG') && HTTP_CATALOG) {
+            return rtrim((string) HTTP_CATALOG, '/') . '/';
+        }
+
+        $catalogUrl = (string) ($this->config->get('config_ssl') ?: $this->config->get('config_url') ?: '');
+        if ($catalogUrl !== '') {
+            return rtrim($catalogUrl, '/') . '/';
+        }
+
+        $serverUrl = defined('HTTPS_SERVER') && HTTPS_SERVER ? (string) HTTPS_SERVER : (defined('HTTP_SERVER') ? (string) HTTP_SERVER : '');
+        return rtrim(str_replace('/admin/', '/', $serverUrl), '/') . '/';
     }
 }
