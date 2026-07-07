@@ -30,6 +30,7 @@ view/frontend/web/js/view/payment/         Checkout renderer
 - Store-scoped credential, webhook secret, availability, and status mapping settings.
 - Configurable public brand name, title, description, and checkout button text.
 - Currency, billing country, minimum order total, and maximum order total availability checks.
+- Per-order request-level webhook URL in each hosted checkout request.
 - Signed webhook/IPN verification with timestamp tolerance.
 - Duplicate webhook protection using order payment metadata.
 - Payment, refund, dispute, and chargeback status mapping.
@@ -42,3 +43,7 @@ view/frontend/web/js/view/payment/         Checkout renderer
 - Magento 2 only.
 - Magento 1 is not supported.
 - Hosted checkout only; no embedded card collection.
+
+## Webhook Routing
+
+The module sends the Magento webhook controller URL as `webhook_url` when it creates each PayXCommerce payment request. That gives every Magento order a request-level callback destination while keeping the merchant dashboard webhook URL available as a fallback for requests created outside Magento.

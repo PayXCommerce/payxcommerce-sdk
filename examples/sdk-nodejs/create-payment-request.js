@@ -23,6 +23,7 @@ client.paymentRequests().create({
   currency: 'USD',
   purpose: 'SDK example order',
   customer: { name: 'Jane Customer', email: 'customer@example.com', country: 'United States' },
+  webhook_url: 'https://example.com/payxcommerce/webhook/order-1001',
   ipn_events: eventTypes.defaultSubscriptions(),
   metadata: { source: 'sdk-nodejs-example' },
   is_test: true

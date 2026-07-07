@@ -27,6 +27,7 @@ assets/                         Admin and checkout assets
 - Test/live mode.
 - Checkout availability checks for currency, billing country, minimum amount, and maximum amount.
 - Classic checkout and WooCommerce Blocks support.
+- Per-order request-level webhook URL in each hosted checkout request.
 - Signed webhook/IPN verification.
 - Duplicate webhook protection using order metadata.
 - Payment success, failure, cancellation, expiry, refund, dispute, and chargeback order updates.
@@ -41,7 +42,7 @@ assets/                         Admin and checkout assets
 3. Activate the plugin in WordPress Admin.
 4. Go to WooCommerce → Settings → Payments → PayXCommerce.
 5. Enter API credentials and webhook secret.
-6. Copy the webhook URL into PayXCommerce merchant settings.
+6. Copy the webhook URL into PayXCommerce merchant settings as a fallback endpoint.
 7. Run a test order.
 
 ## SDK Loading
@@ -53,3 +54,5 @@ The plugin loads the PayXCommerce PHP SDK from Composer when packaged. In this m
 ```text
 https://your-store.example.com/?wc-api=payxcommerce
 ```
+
+The plugin also sends this URL as `webhook_url` on every payment request, so PayXCommerce can route callbacks for that order directly back to the WooCommerce store. The dashboard webhook URL remains useful as a merchant-level fallback when a request is created without its own webhook URL.

@@ -34,6 +34,7 @@ try:
         "currency": "USD",
         "purpose": "SDK bearer example order",
         "customer": {"name": "Jane Customer", "email": "customer@example.com", "country": "United States"},
+        "webhook_url": "https://example.com/payxcommerce/webhook/order-1001",
         "ipn_events": event_types.default_subscriptions(),
         "metadata": {"source": "python-sdk-bearer-example"},
         "is_test": True,

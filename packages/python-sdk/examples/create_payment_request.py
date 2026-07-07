@@ -13,7 +13,7 @@ response = client.payment_requests().create({
     "success_url": "https://example.com/payment/success",
     "failed_url": "https://example.com/payment/failed",
     "cancel_url": "https://example.com/payment/cancel",
-    "webhook_url": "https://example.com/payxcommerce/webhook",
+    "webhook_url": "https://example.com/payxcommerce/webhook/order-1001",
     "ipn_events": event_types.default_subscriptions(),
     "metadata": {"source": "python-sdk-example"},
     "is_test": True,

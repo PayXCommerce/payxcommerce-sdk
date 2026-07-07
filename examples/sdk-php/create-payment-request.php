@@ -30,7 +30,7 @@ try {
         'success_url' => 'https://example.com/payment/success',
         'failed_url' => 'https://example.com/payment/failed',
         'cancel_url' => 'https://example.com/payment/cancel',
-        'webhook_url' => 'https://example.com/payxcommerce/webhook',
+        'webhook_url' => 'https://example.com/payxcommerce/webhook/order-1001',
         'ipn_events' => EventTypes::defaultSubscriptions(),
         'metadata' => ['source' => 'php-sdk-example'],
         'is_test' => true,

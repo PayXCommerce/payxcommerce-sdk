@@ -9,6 +9,7 @@ use PayXCommerce\Client;
 use PayXCommerce\Config;
 use PayXCommerce\Exceptions\ApiException;
 use PayXCommerce\OAuth\ClientCredentials;
+use PayXCommerce\Webhooks\EventTypes;
 
 $oauth = new ClientCredentials(
     clientId: getenv('PAYX_CLIENT_ID') ?: 'YOUR_CLIENT_ID',
@@ -31,6 +32,8 @@ try {
         'success_url' => 'https://example.com/payment/success',
         'failed_url' => 'https://example.com/payment/failed',
         'cancel_url' => 'https://example.com/payment/cancel',
+        'webhook_url' => 'https://example.com/payxcommerce/webhook/order-1001',
+        'ipn_events' => EventTypes::defaultSubscriptions(),
         'is_test' => true,
     ]);
 

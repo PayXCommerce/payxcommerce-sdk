@@ -11,6 +11,7 @@ const { BearerTokenAuth, Client, ClientCredentials, Config, eventTypes } = requi
     currency: 'USD',
     purpose: 'SDK bearer example order',
     customer: { name: 'Jane Customer', email: 'customer@example.com', country: 'United States' },
+    webhook_url: 'https://example.com/payxcommerce/webhook/order-1001',
     ipn_events: eventTypes.defaultSubscriptions(),
     metadata: { source: 'node-sdk-bearer-example' },
     is_test: true
