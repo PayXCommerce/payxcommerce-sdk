@@ -3,8 +3,90 @@
   <strong>{{ brand_name }}</strong>
 </div>
 {% if description %}<p>{{ description }}</p>{% endif %}
+<form id="payxcommerce-confirm-form" action="{{ action }}" method="post">
+  {% if not requires_phone %}
+    <input type="hidden" name="payx_customer_phone" value="{{ current_phone }}">
+  {% endif %}
+  {% if not requires_country %}
+    <input type="hidden" name="payx_customer_country" value="{{ current_country }}">
+  {% endif %}
+</form>
 <div class="buttons">
   <div class="pull-right">
-    <a href="{{ action }}" class="btn btn-primary">{{ button_confirm }}</a>
+    <button type="button" id="payxcommerce-confirm-button" class="btn btn-primary">{{ button_confirm }}</button>
   </div>
 </div>
+<div id="payxcommerce-contact-modal" class="payxcommerce-modal" aria-hidden="true">
+  <div class="payxcommerce-modal-card" role="dialog" aria-modal="true" aria-labelledby="payxcommerce-contact-title">
+    <h4 id="payxcommerce-contact-title">{{ text_required_contact_title }}</h4>
+    <p>{{ text_required_contact_intro }}</p>
+    <div id="payxcommerce-contact-error" class="payxcommerce-modal-error" style="display:none;">{{ text_required_contact_error }}</div>
+    {% if requires_phone %}
+      <label>{{ entry_phone }}</label>
+      <input type="tel" id="payxcommerce-phone" class="payxcommerce-modal-input" value="{{ current_phone }}" autocomplete="tel">
+    {% endif %}
+    {% if requires_country %}
+      <label>{{ entry_country }}</label>
+      <select id="payxcommerce-country" class="payxcommerce-modal-input">
+        <option value="">{{ text_select_country }}</option>
+        {% for country in countries %}
+          <option value="{{ country.iso_code_2 }}" {{ current_country == country.iso_code_2 ? 'selected' : '' }}>{{ country.name }}</option>
+        {% endfor %}
+      </select>
+    {% endif %}
+    <div class="payxcommerce-modal-actions">
+      <button type="button" id="payxcommerce-modal-cancel" class="btn btn-default">{{ button_cancel }}</button>
+      <button type="button" id="payxcommerce-modal-continue" class="btn btn-primary">{{ button_continue }}</button>
+    </div>
+  </div>
+</div>
+<style>
+.payxcommerce-modal{align-items:center;background:rgba(2,27,58,.54);display:none;inset:0;justify-content:center;padding:18px;position:fixed;z-index:99999}.payxcommerce-modal.is-open{display:flex}.payxcommerce-modal-card{background:#fff;border-radius:18px;box-shadow:0 24px 70px rgba(2,27,58,.25);max-width:460px;padding:24px;width:100%}.payxcommerce-modal-card h4{color:#021b3a;font-weight:800;margin:0 0 8px}.payxcommerce-modal-card p{color:#5f6b7a;margin:0 0 18px}.payxcommerce-modal-card label{display:block;font-weight:700;margin:12px 0 6px}.payxcommerce-modal-input{border:1px solid #d8e0ea;border-radius:10px;box-sizing:border-box;padding:11px 12px;width:100%}.payxcommerce-modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}.payxcommerce-modal-error{background:#fff2f2;border:1px solid #ffcaca;border-radius:10px;color:#a21d1d;margin-bottom:12px;padding:10px 12px}
+</style>
+<script>
+(function () {
+  var requiresPhone = {{ requires_phone ? 'true' : 'false' }};
+  var requiresCountry = {{ requires_country ? 'true' : 'false' }};
+  var form = document.getElementById('payxcommerce-confirm-form');
+  var button = document.getElementById('payxcommerce-confirm-button');
+  var modal = document.getElementById('payxcommerce-contact-modal');
+  var error = document.getElementById('payxcommerce-contact-error');
+  function appendHidden(name, value) {
+    var input = form.querySelector('input[name="' + name + '"]') || document.createElement('input');
+    input.type = 'hidden';
+    input.name = name;
+    input.value = value || '';
+    if (!input.parentNode) form.appendChild(input);
+  }
+  function submitForm() {
+    if (form.requestSubmit) {
+      form.requestSubmit();
+    } else {
+      form.submit();
+    }
+  }
+  button.addEventListener('click', function () {
+    if (requiresPhone || requiresCountry) {
+      modal.classList.add('is-open');
+      modal.setAttribute('aria-hidden', 'false');
+      return;
+    }
+    submitForm();
+  });
+  document.getElementById('payxcommerce-modal-cancel').addEventListener('click', function () {
+    modal.classList.remove('is-open');
+    modal.setAttribute('aria-hidden', 'true');
+  });
+  document.getElementById('payxcommerce-modal-continue').addEventListener('click', function () {
+    var phone = document.getElementById('payxcommerce-phone');
+    var country = document.getElementById('payxcommerce-country');
+    if ((requiresPhone && (!phone || !phone.value.trim())) || (requiresCountry && (!country || !country.value))) {
+      error.style.display = 'block';
+      return;
+    }
+    if (phone) appendHidden('payx_customer_phone', phone.value.trim());
+    if (country) appendHidden('payx_customer_country', country.value);
+    submitForm();
+  });
+})();
+</script>

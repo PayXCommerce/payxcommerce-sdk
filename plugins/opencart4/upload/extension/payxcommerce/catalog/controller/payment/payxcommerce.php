@@ -6,13 +6,29 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
     public function index(): string
     {
         $this->load->language('extension/payxcommerce/payment/payxcommerce');
+        $this->load->model('checkout/order');
+        $this->load->model('localisation/country');
         $brand = $this->brandName();
+        $contact = $this->checkoutContact();
 
         return $this->load->view('extension/payxcommerce/payment/payxcommerce', [
             'button_confirm' => $this->publicText('payment_payxcommerce_button_text', $this->language->get('button_confirm'), $brand),
             'description' => $this->publicText('payment_payxcommerce_description', 'You will be redirected to secure hosted checkout to complete your payment.', $brand),
             'brand_name' => $brand,
             'icon_url' => 'extension/payxcommerce/catalog/view/image/payxcommerce/logo-icon-dark-64.png',
+            'countries' => $this->model_localisation_country->getCountries(),
+            'current_phone' => $contact['phone'],
+            'current_country' => $contact['country'],
+            'requires_phone' => $contact['phone'] === '',
+            'requires_country' => $contact['country'] === '',
+            'text_required_contact_title' => $this->language->get('text_required_contact_title'),
+            'text_required_contact_intro' => $this->language->get('text_required_contact_intro'),
+            'entry_phone' => $this->language->get('entry_phone'),
+            'entry_country' => $this->language->get('entry_country'),
+            'text_select_country' => $this->language->get('text_select_country'),
+            'text_required_contact_error' => $this->language->get('text_required_contact_error'),
+            'button_continue' => $this->language->get('button_continue'),
+            'button_cancel' => $this->language->get('button_cancel'),
             'action' => $this->url->link('extension/payxcommerce/payment/payxcommerce.confirm'),
         ]);
     }
@@ -29,6 +45,25 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
             return;
         }
 
+        $submitted_contact = $this->submittedContact();
+        $this->load->model('localisation/country');
+        $order_country = $this->countryFromOrder($order);
+        $country = $submitted_contact['country'] !== '' ? $this->countryByIsoCode2($submitted_contact['country']) : $order_country;
+        $phone = $submitted_contact['phone'] !== '' ? $submitted_contact['phone'] : trim((string) ($order['telephone'] ?? ''));
+        $country_iso = $country ? strtoupper((string) $country['iso_code_2']) : '';
+        $country_name = $country ? (string) $country['name'] : (string) ($order['payment_country'] ?? '');
+
+        if ($phone === '' || $country_iso === '') {
+            $this->session->data['error'] = $this->language->get('error_required_contact');
+            $this->response->redirect($this->url->link('checkout/checkout'));
+            return;
+        }
+
+        $this->model_extension_payxcommerce_payment_payxcommerce->updateCheckoutContact($order, $phone, $country ?: []);
+        $order['telephone'] = $phone;
+        $order['payment_country'] = $country_name ?: $country_iso;
+        $order['payment_iso_code_2'] = $country_iso;
+
         $merchant_reference = 'OC4-' . $order_id;
         $payload = [
             'amount' => (float) $order['total'],
@@ -37,10 +72,10 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
             'customer' => [
                 'name' => trim($order['firstname'] . ' ' . $order['lastname']) ?: 'Customer',
                 'email' => $order['email'],
-                'mobile' => $order['telephone'],
+                'mobile' => $phone,
                 'address' => trim($order['payment_address_1'] . ' ' . $order['payment_address_2']),
                 'city' => $order['payment_city'],
-                'country' => $order['payment_iso_code_2'] ?: $order['payment_country'],
+                'country' => $country_iso,
             ],
             'merchant_reference' => $merchant_reference,
             'merchant_order_id' => (string) $order_id,
@@ -158,6 +193,74 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
     {
         $value = (string) ($this->config->get($key) ?: $default);
         return str_replace('{brand}', $brand, $value);
+    }
+
+    private function checkoutContact(): array
+    {
+        $order = [];
+        $order_id = (int) ($this->session->data['order_id'] ?? 0);
+        if ($order_id > 0) {
+            $order = $this->model_checkout_order->getOrder($order_id) ?: [];
+        }
+
+        $phone = trim((string) ($order['telephone'] ?? ''));
+        if ($phone === '' && $this->customer->isLogged()) {
+            $phone = trim((string) $this->customer->getTelephone());
+        }
+
+        $country_data = $this->countryFromOrder($order);
+        $country = strtoupper(trim((string) ($country_data['iso_code_2'] ?? '')));
+        if ($country === '' && !empty($this->session->data['payment_address']['iso_code_2'])) {
+            $country = strtoupper(trim((string) $this->session->data['payment_address']['iso_code_2']));
+        }
+
+        return ['phone' => $phone, 'country' => $country];
+    }
+
+    private function submittedContact(): array
+    {
+        $phone = preg_replace('/[^0-9+().\\-\\s]/', '', (string) ($this->request->post['payx_customer_phone'] ?? ''));
+        $country = strtoupper(trim((string) ($this->request->post['payx_customer_country'] ?? '')));
+
+        return [
+            'phone' => trim((string) $phone),
+            'country' => preg_match('/^[A-Z]{2}$/', $country) ? $country : '',
+        ];
+    }
+
+    private function countryByIsoCode2(string $iso_code_2): array
+    {
+        $iso_code_2 = strtoupper($iso_code_2);
+        if (is_callable([$this->model_localisation_country, 'getCountryByIsoCode2'])) {
+            return $this->model_localisation_country->getCountryByIsoCode2($iso_code_2) ?: [];
+        }
+
+        foreach ($this->model_localisation_country->getCountries() as $country) {
+            if (strtoupper((string) ($country['iso_code_2'] ?? '')) === $iso_code_2) {
+                return $country;
+            }
+        }
+
+        return [];
+    }
+
+    private function countryFromOrder(array $order): array
+    {
+        $iso_code_2 = strtoupper(trim((string) ($order['payment_iso_code_2'] ?? '')));
+        if (preg_match('/^[A-Z]{2}$/', $iso_code_2)) {
+            return [
+                'country_id' => (int) ($order['payment_country_id'] ?? 0),
+                'name' => (string) ($order['payment_country'] ?? $iso_code_2),
+                'iso_code_2' => $iso_code_2,
+            ];
+        }
+
+        if (!empty($order['payment_country_id']) && is_callable([$this->model_localisation_country, 'getCountry'])) {
+            return $this->model_localisation_country->getCountry((int) $order['payment_country_id']) ?: [];
+        }
+
+        $country = strtoupper(trim((string) ($order['payment_country'] ?? '')));
+        return preg_match('/^[A-Z]{2}$/', $country) ? $this->countryByIsoCode2($country) : [];
     }
 
     private function redact(string $message): string

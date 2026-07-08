@@ -8,6 +8,7 @@ OpenCart 4 extension loaders changed from OpenCart 3, so this folder keeps a sep
 - Credential validation before enabling saved settings.
 - Configurable public brand name, payment title, description, and checkout button text.
 - Currency, billing country, geo-zone, minimum total, and maximum total availability checks.
+- Standalone checkout details modal for collecting phone/country when OpenCart checkout does not require them.
 - Hosted checkout redirect from OpenCart orders.
 - Idempotent payment request creation.
 - Per-order request-level webhook URL in each hosted checkout request.

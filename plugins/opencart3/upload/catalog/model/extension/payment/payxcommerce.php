@@ -96,6 +96,67 @@ class ModelExtensionPaymentPayXCommerce extends Model
         $this->db->query("UPDATE `" . DB_PREFIX . "payxcommerce_order` SET payx_payment_id = '" . $this->db->escape((string) ($payload['payment_id'] ?? '')) . "', payx_transaction_reference = '" . $this->db->escape((string) ($payload['transaction_reference'] ?? '')) . "', payment_status = '" . $this->db->escape((string) ($payload['event_type'] ?? '')) . "', settlement_status = '" . $this->db->escape((string) ($payload['settlement_status'] ?? '')) . "', updated_at = NOW() WHERE order_id = '" . (int) $order_id . "'");
     }
 
+    public function updateCheckoutContact(array $order, string $phone, array $country): void
+    {
+        $order_id = (int) ($order['order_id'] ?? 0);
+        $country_id = (int) ($country['country_id'] ?? 0);
+        $country_name = (string) ($country['name'] ?? '');
+        $country_iso = strtoupper((string) ($country['iso_code_2'] ?? ''));
+
+        if ($order_id > 0) {
+            $updates = ["telephone = '" . $this->db->escape($phone) . "'"];
+            if ($country_iso !== '') {
+                $updates[] = "payment_country = '" . $this->db->escape($country_name ?: $country_iso) . "'";
+                if ($this->orderColumnExists('payment_country_id')) {
+                    $updates[] = "payment_country_id = '" . $country_id . "'";
+                }
+                if ($this->orderColumnExists('payment_iso_code_2')) {
+                    $updates[] = "payment_iso_code_2 = '" . $this->db->escape($country_iso) . "'";
+                }
+                if ($this->orderColumnExists('shipping_country')) {
+                    $updates[] = "shipping_country = IF(shipping_country = '', '" . $this->db->escape($country_name ?: $country_iso) . "', shipping_country)";
+                }
+                if ($this->orderColumnExists('shipping_country_id')) {
+                    $updates[] = "shipping_country_id = IF(shipping_country_id = '0', '" . $country_id . "', shipping_country_id)";
+                }
+                if ($this->orderColumnExists('shipping_iso_code_2')) {
+                    $updates[] = "shipping_iso_code_2 = IF(shipping_iso_code_2 = '', '" . $this->db->escape($country_iso) . "', shipping_iso_code_2)";
+                }
+            }
+            $this->db->query("UPDATE `" . DB_PREFIX . "order` SET " . implode(', ', $updates) . " WHERE order_id = '" . $order_id . "'");
+        }
+
+        $customer_id = (int) ($order['customer_id'] ?? ($this->customer->isLogged() ? $this->customer->getId() : 0));
+        if ($customer_id > 0 && $phone !== '') {
+            $this->db->query("UPDATE `" . DB_PREFIX . "customer` SET telephone = '" . $this->db->escape($phone) . "' WHERE customer_id = '" . $customer_id . "'");
+        }
+
+        if ($customer_id > 0 && $country_id > 0) {
+            $address_ids = [];
+            if (!empty($order['payment_address_id'])) {
+                $address_ids[] = (int) $order['payment_address_id'];
+            }
+            if (!empty($this->session->data['payment_address']['address_id'])) {
+                $address_ids[] = (int) $this->session->data['payment_address']['address_id'];
+            }
+            foreach (array_unique(array_filter($address_ids)) as $address_id) {
+                $this->db->query("UPDATE `" . DB_PREFIX . "address` SET country_id = '" . $country_id . "' WHERE address_id = '" . $address_id . "' AND customer_id = '" . $customer_id . "'");
+            }
+        }
+
+        if ($country_id > 0) {
+            $this->session->data['payment_address']['country_id'] = $country_id;
+            $this->session->data['payment_address']['country'] = $country_name;
+            $this->session->data['payment_address']['iso_code_2'] = $country_iso;
+        }
+    }
+
+    private function orderColumnExists(string $column): bool
+    {
+        $query = $this->db->query("SHOW COLUMNS FROM `" . DB_PREFIX . "order` LIKE '" . $this->db->escape($column) . "'");
+        return (bool) $query->num_rows;
+    }
+
     private function csvConfig(string $key): array
     {
         $raw = (string) $this->config->get($key);
