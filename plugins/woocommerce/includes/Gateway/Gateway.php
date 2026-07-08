@@ -95,12 +95,6 @@ final class Gateway extends WC_Payment_Gateway
 
     public function payment_fields(): void
     {
-        printf(
-            '<div class="payxcommerce-checkout-brand" style="display:flex;align-items:center;gap:10px;margin:0 0 10px;"><img src="%1$s" alt="%2$s" width="32" height="32" style="width:32px;height:32px;border-radius:6px;"><strong>%2$s</strong></div>',
-            esc_url(PAYXCOMMERCE_WC_URL . 'assets/img/logo-icon-dark-64.png'),
-            esc_html($this->brandName())
-        );
-
         if ($this->description) {
             echo wpautop(wp_kses_post($this->description));
         }

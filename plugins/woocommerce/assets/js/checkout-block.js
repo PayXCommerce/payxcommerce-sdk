@@ -15,13 +15,7 @@
     style: { width: '24px', height: '24px', borderRadius: '5px', marginRight: '8px', verticalAlign: 'middle' }
   }) : null;
   const label = element('span', { style: { display: 'inline-flex', alignItems: 'center' } }, icon, element('span', null, labelText));
-  const content = element('div', null,
-    element('div', { style: { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' } },
-      settings.iconUrl ? element('img', { src: settings.iconUrl, alt: brandName, style: { width: '32px', height: '32px', borderRadius: '6px' } }) : null,
-      element('strong', null, brandName)
-    ),
-    description ? element('p', null, description) : null
-  );
+  const content = description ? element('p', null, description) : element('span', null, '');
 
   window.wc.wcBlocksRegistry.registerPaymentMethod({
     name: 'payxcommerce',
