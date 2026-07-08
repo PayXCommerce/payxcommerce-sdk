@@ -46,6 +46,7 @@ final class PaymentMethodType extends AbstractPaymentMethodType
             'description' => $description,
             'brandName' => $brand,
             'buttonText' => $buttonText,
+            'iconUrl' => PAYXCOMMERCE_WC_URL . 'assets/img/logo-icon-dark-64.png',
             'supports' => ['products'],
         ];
     }

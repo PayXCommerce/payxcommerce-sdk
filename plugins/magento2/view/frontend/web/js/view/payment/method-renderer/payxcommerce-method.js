@@ -31,6 +31,10 @@ define([
             return window.checkoutConfig.payment.payxcommerce.buttonText || 'Continue to secure checkout';
         },
 
+        getIconUrl: function () {
+            return window.checkoutConfig.payment.payxcommerce.iconUrl || '';
+        },
+
         placeOrder: function (data, event) {
             if (event) {
                 event.preventDefault();

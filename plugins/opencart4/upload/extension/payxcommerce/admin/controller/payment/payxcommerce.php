@@ -67,6 +67,7 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
         $data['error_warning'] = $this->error['warning'] ?? '';
         $data['order_statuses'] = $this->model_localisation_order_status->getOrderStatuses();
         $data['geo_zones'] = $this->model_localisation_geo_zone->getGeoZones();
+        $data['icon_url'] = 'extension/payxcommerce/admin/view/image/payment/payxcommerce-logo-icon-dark-64.png';
         $data['webhook_url'] = $this->catalogUrl() . 'index.php?route=extension/payxcommerce/payment/payxcommerce.webhook';
         $data['action'] = $this->url->link('extension/payxcommerce/payment/payxcommerce', 'user_token=' . $this->session->data['user_token']);
         $data['cancel'] = $this->url->link('marketplace/extension', 'user_token=' . $this->session->data['user_token'] . '&type=payment');

@@ -37,6 +37,7 @@ class ControllerExtensionPaymentPayXCommerce extends Controller
         $data['cancel'] = $this->url->link('marketplace/extension', 'user_token=' . $this->session->data['user_token'] . '&type=payment', true);
         $data['order_statuses'] = $this->model_localisation_order_status->getOrderStatuses();
         $data['geo_zones'] = $this->model_localisation_geo_zone->getGeoZones();
+        $data['icon_url'] = 'view/image/payment/payxcommerce-logo-icon-dark-64.png';
 
         $defaults = [
             'payment_payxcommerce_status' => 0,

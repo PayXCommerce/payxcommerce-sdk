@@ -4,6 +4,7 @@
         <section id="payment">
             <group id="payxcommerce" translate="label" type="text" sortOrder="910" showInDefault="1" showInWebsite="1" showInStore="1">
                 <label>PayXCommerce Hosted Checkout</label>
+                <field id="brand_logo" translate="label" type="label" sortOrder="5" showInDefault="1" showInWebsite="1" showInStore="1"><label>PayXCommerce</label><frontend_model>PayXCommerce\Payment\Block\Adminhtml\System\Config\Logo</frontend_model></field>
                 <field id="active" translate="label" type="select" sortOrder="10" showInDefault="1" showInWebsite="1" showInStore="1"><label>Enabled</label><source_model>Magento\Config\Model\Config\Source\Yesno</source_model><backend_model>PayXCommerce\Payment\Model\Config\Backend\Active</backend_model></field>
                 <field id="brand_name" translate="label comment" type="text" sortOrder="20" showInDefault="1" showInWebsite="1" showInStore="1"><label>Public Brand Name</label><comment>Shown to customers. Use {brand} in title, description, and button text.</comment></field>
                 <field id="title" translate="label" type="text" sortOrder="30" showInDefault="1" showInWebsite="1" showInStore="1"><label>Checkout Title</label></field>

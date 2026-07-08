@@ -11,6 +11,8 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
         return $this->load->view('extension/payxcommerce/payment/payxcommerce', [
             'button_confirm' => $this->publicText('payment_payxcommerce_button_text', $this->language->get('button_confirm'), $brand),
             'description' => $this->publicText('payment_payxcommerce_description', 'You will be redirected to secure hosted checkout to complete your payment.', $brand),
+            'brand_name' => $brand,
+            'icon_url' => 'extension/payxcommerce/catalog/view/image/payxcommerce/logo-icon-dark-64.png',
             'action' => $this->url->link('extension/payxcommerce/payment/payxcommerce.confirm'),
         ]);
     }

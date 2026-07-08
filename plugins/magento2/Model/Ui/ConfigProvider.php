@@ -5,6 +5,7 @@ namespace PayXCommerce\Payment\Model\Ui;
 
 use Magento\Checkout\Model\ConfigProviderInterface;
 use Magento\Store\Model\StoreManagerInterface;
+use Magento\Framework\View\Asset\Repository as AssetRepository;
 use PayXCommerce\Payment\Model\Config;
 
 class ConfigProvider implements ConfigProviderInterface
@@ -13,7 +14,8 @@ class ConfigProvider implements ConfigProviderInterface
 
     public function __construct(
         private readonly Config $config,
-        private readonly StoreManagerInterface $storeManager
+        private readonly StoreManagerInterface $storeManager,
+        private readonly AssetRepository $assetRepository
     ) {
     }
 
@@ -28,6 +30,7 @@ class ConfigProvider implements ConfigProviderInterface
                     'title' => $this->config->publicText('title', 'Pay securely with {brand}', $storeId),
                     'description' => $this->config->publicText('description', 'You will be redirected to secure hosted checkout to complete your payment.', $storeId),
                     'buttonText' => $this->config->publicText('button_text', 'Continue to secure checkout', $storeId),
+                    'iconUrl' => $this->assetRepository->getUrl('PayXCommerce_Payment::images/logo-icon-dark-64.png'),
                     'redirectUrl' => 'payxcommerce/checkout/start',
                 ],
             ],

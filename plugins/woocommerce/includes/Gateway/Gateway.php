@@ -24,8 +24,14 @@ final class Gateway extends WC_Payment_Gateway
     public function __construct()
     {
         $this->id = 'payxcommerce';
+        $this->icon = PAYXCOMMERCE_WC_URL . 'assets/img/logo-icon-dark-64.png';
         $this->method_title = __('PayXCommerce Hosted Checkout', 'payxcommerce-gateway');
-        $this->method_description = __('Create hosted checkout payment requests and receive signed payment status webhooks.', 'payxcommerce-gateway');
+        $this->method_description = sprintf(
+            '<span class="payxcommerce-admin-brand"><img src="%1$s" alt="" width="28" height="28"> <strong>%2$s</strong></span><br>%3$s',
+            esc_url(PAYXCOMMERCE_WC_URL . 'assets/img/logo-icon-dark-64.png'),
+            esc_html__('PayXCommerce Hosted Checkout', 'payxcommerce-gateway'),
+            esc_html__('Create hosted checkout payment requests and receive signed payment status webhooks.', 'payxcommerce-gateway')
+        );
         $this->has_fields = false;
         $this->supports = ['products', 'refunds'];
 
@@ -89,10 +95,27 @@ final class Gateway extends WC_Payment_Gateway
 
     public function payment_fields(): void
     {
+        printf(
+            '<div class="payxcommerce-checkout-brand" style="display:flex;align-items:center;gap:10px;margin:0 0 10px;"><img src="%1$s" alt="%2$s" width="32" height="32" style="width:32px;height:32px;border-radius:6px;"><strong>%2$s</strong></div>',
+            esc_url(PAYXCOMMERCE_WC_URL . 'assets/img/logo-icon-dark-64.png'),
+            esc_html($this->brandName())
+        );
+
         if ($this->description) {
             echo wpautop(wp_kses_post($this->description));
         }
         printf('<p class="payxcommerce-checkout-note">%s</p>', esc_html(sprintf(__('You will complete payment through %s hosted checkout.', 'payxcommerce-gateway'), $this->brandName())));
+    }
+
+    public function get_icon(): string
+    {
+        $icon = sprintf(
+            '<img src="%1$s" alt="%2$s" class="payxcommerce-payment-icon" style="height:24px;width:24px;vertical-align:middle;margin-left:8px;border-radius:5px;" />',
+            esc_url(PAYXCOMMERCE_WC_URL . 'assets/img/logo-icon-dark-64.png'),
+            esc_attr($this->brandName())
+        );
+
+        return apply_filters('woocommerce_gateway_icon', $icon, $this->id);
     }
 
     public function orderButtonText(string $buttonText): string

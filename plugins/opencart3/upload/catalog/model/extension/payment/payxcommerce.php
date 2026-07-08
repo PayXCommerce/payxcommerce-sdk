@@ -37,9 +37,12 @@ class ModelExtensionPaymentPayXCommerce extends Model
             return [];
         }
 
+        $title = $this->publicText('payment_payxcommerce_title', 'Pay securely with {brand}');
+        $icon = '<img src="catalog/view/theme/default/image/payxcommerce/logo-icon-dark-64.png" alt="' . htmlspecialchars($this->brandName(), ENT_QUOTES, 'UTF-8') . '" style="height:24px;width:24px;border-radius:5px;margin-right:8px;vertical-align:middle;">';
+
         return [
             'code' => 'payxcommerce',
-            'title' => $this->publicText('payment_payxcommerce_title', 'Pay securely with {brand}'),
+            'title' => $icon . $title,
             'terms' => '',
             'sort_order' => (int) $this->config->get('payment_payxcommerce_sort_order'),
         ];
@@ -116,8 +119,12 @@ class ModelExtensionPaymentPayXCommerce extends Model
 
     private function publicText(string $key, string $default): string
     {
-        $brand = (string) ($this->config->get('payment_payxcommerce_brand_name') ?: 'PayXCommerce');
         $value = (string) ($this->config->get($key) ?: $default);
-        return str_replace('{brand}', $brand, $value);
+        return str_replace('{brand}', $this->brandName(), $value);
+    }
+
+    private function brandName(): string
+    {
+        return (string) ($this->config->get('payment_payxcommerce_brand_name') ?: 'PayXCommerce');
     }
 }

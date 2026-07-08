@@ -10,6 +10,8 @@ class ControllerExtensionPaymentPayXCommerce extends Controller
         return $this->load->view('extension/payment/payxcommerce', [
             'button_confirm' => $this->publicText('payment_payxcommerce_button_text', $this->language->get('button_confirm'), $brand),
             'description' => $this->publicText('payment_payxcommerce_description', $this->language->get('text_description'), $brand),
+            'brand_name' => $brand,
+            'icon_url' => 'catalog/view/theme/default/image/payxcommerce/logo-icon-dark-64.png',
             'action' => $this->url->link('extension/payment/payxcommerce/confirm', '', true),
         ]);
     }

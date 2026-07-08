@@ -1,11 +1,11 @@
 {{ header }}{{ column_left }}
 <div id="content">
-  <div class="page-header"><div class="container-fluid"><h1>{{ heading_title }}</h1></div></div>
+  <div class="page-header"><div class="container-fluid"><h1><img src="{{ icon_url }}" alt="PayXCommerce" style="width:32px;height:32px;border-radius:7px;margin-right:8px;vertical-align:middle;"> {{ heading_title }}</h1></div></div>
   <div class="container-fluid">
     {% if error_warning %}<div class="alert alert-danger"><i class="fa fa-exclamation-circle"></i> {{ error_warning }}</div>{% endif %}
     <div class="alert alert-info"><strong>Webhook URL:</strong> {{ webhook_url }}<br><small>This URL is sent on each payment request and can also be saved in PayXCommerce merchant settings as a fallback endpoint.</small></div>
     <form action="{{ action }}" method="post" enctype="multipart/form-data" class="form-horizontal">
-      <div class="panel panel-default"><div class="panel-heading"><h3 class="panel-title">PayXCommerce Settings</h3></div><div class="panel-body">
+      <div class="panel panel-default"><div class="panel-heading"><h3 class="panel-title"><img src="{{ icon_url }}" alt="PayXCommerce" style="width:24px;height:24px;border-radius:5px;margin-right:6px;vertical-align:middle;"> PayXCommerce Settings</h3></div><div class="panel-body">
         <div class="form-group"><label class="col-sm-2 control-label">Status</label><div class="col-sm-10"><select name="payment_payxcommerce_status" class="form-control"><option value="1" {% if payment_payxcommerce_status %}selected{% endif %}>Enabled</option><option value="0" {% if not payment_payxcommerce_status %}selected{% endif %}>Disabled</option></select></div></div>
         <div class="form-group"><label class="col-sm-2 control-label">Environment</label><div class="col-sm-10"><select name="payment_payxcommerce_environment" class="form-control"><option value="test" {% if payment_payxcommerce_environment != 'live' %}selected{% endif %}>Test</option><option value="live" {% if payment_payxcommerce_environment == 'live' %}selected{% endif %}>Live</option></select></div></div>
         <div class="form-group"><label class="col-sm-2 control-label">Authentication Method</label><div class="col-sm-10"><select name="payment_payxcommerce_auth_method" class="form-control" id="input-payxcommerce-auth-method"><option value="hmac" {% if payment_payxcommerce_auth_method != 'bearer' %}selected{% endif %}>HMAC API Key</option><option value="bearer" {% if payment_payxcommerce_auth_method == 'bearer' %}selected{% endif %}>Developer App OAuth</option></select><p class="help-block">Only the required credentials for the selected authentication method are shown.</p></div></div>

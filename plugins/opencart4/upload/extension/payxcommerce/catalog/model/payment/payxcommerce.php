@@ -39,16 +39,18 @@ class Payxcommerce extends \Opencart\System\Engine\Model
         }
 
         $title = $this->publicText('payment_payxcommerce_title', 'Pay securely with {brand}');
+        $icon = '<img src="extension/payxcommerce/catalog/view/image/payxcommerce/logo-icon-dark-64.png" alt="' . htmlspecialchars($this->brandName(), ENT_QUOTES, 'UTF-8') . '" style="height:24px;width:24px;border-radius:5px;margin-right:8px;vertical-align:middle;">';
+        $title_with_icon = $icon . $title;
         $option_data = [
             'payxcommerce' => [
                 'code' => 'payxcommerce.payxcommerce',
-                'name' => $title,
+                'name' => $title_with_icon,
             ],
         ];
 
         return [
             'code' => 'payxcommerce',
-            'name' => $title,
+            'name' => $title_with_icon,
             'option' => $option_data,
             'sort_order' => (int) $this->config->get('payment_payxcommerce_sort_order'),
         ];
@@ -121,8 +123,12 @@ class Payxcommerce extends \Opencart\System\Engine\Model
 
     private function publicText(string $key, string $default): string
     {
-        $brand = (string) ($this->config->get('payment_payxcommerce_brand_name') ?: 'PayXCommerce');
         $value = (string) ($this->config->get($key) ?: $default);
-        return str_replace('{brand}', $brand, $value);
+        return str_replace('{brand}', $this->brandName(), $value);
+    }
+
+    private function brandName(): string
+    {
+        return (string) ($this->config->get('payment_payxcommerce_brand_name') ?: 'PayXCommerce');
     }
 }

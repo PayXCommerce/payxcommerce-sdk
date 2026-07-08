@@ -5,3 +5,14 @@
   padding: 10px 12px;
   margin: 8px 0;
 }
+
+.payxcommerce-admin-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.payxcommerce-admin-brand img {
+  border-radius: 6px;
+}
