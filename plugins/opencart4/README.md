@@ -17,8 +17,27 @@ OpenCart 4 extension loaders changed from OpenCart 3, so this folder keeps a sep
 
 ## Package Structure
 
+The installable OpenCart 4 ZIP must be named `payxcommerce.ocmod.zip`. OpenCart 4 uses the uploaded ZIP basename as the extension code, so versioned filenames such as `payxcommerce-opencart4-gateway-0.3.3.ocmod.zip` can install into the wrong extension directory.
+
+The ZIP root must contain `install.json` directly. Do not zip the parent `extension/` folder. The correct ZIP root layout is:
+
 ```text
-upload/extension/payxcommerce/
+install.json
+admin/
+catalog/
+system/
+```
+
+Build and validate the package with:
+
+```bash
+scripts/build-opencart4-package.sh
+```
+
+Source files live under:
+
+```text
+plugins/opencart4/upload/extension/payxcommerce/
 ├── admin/controller/payment/payxcommerce.php
 ├── admin/view/template/payment/payxcommerce.twig
 ├── catalog/controller/payment/payxcommerce.php

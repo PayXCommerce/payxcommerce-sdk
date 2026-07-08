@@ -2,7 +2,7 @@
   "name": "PayXCommerce OpenCart 4 Payment Extension",
   "description": "Hosted checkout payment extension for OpenCart 4.",
   "code": "payxcommerce",
-  "version": "0.3.1",
+  "version": "0.3.3",
   "author": "PayXCommerce",
   "link": "https://payxcommerce.com"
 }
