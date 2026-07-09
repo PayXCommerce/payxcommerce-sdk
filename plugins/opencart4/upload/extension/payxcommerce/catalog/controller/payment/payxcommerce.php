@@ -79,7 +79,7 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
             ],
             'merchant_reference' => $merchant_reference,
             'merchant_order_id' => (string) $order_id,
-            'success_url' => $this->url->link('checkout/success'),
+            'success_url' => $this->url->link('extension/payxcommerce/payment/payxcommerce.success'),
             'failed_url' => $this->url->link('checkout/failure'),
             'cancel_url' => $this->url->link('checkout/checkout'),
             'webhook_url' => $this->url->link('extension/payxcommerce/payment/payxcommerce.webhook'),
@@ -107,8 +107,20 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
         }
 
         $this->model_extension_payxcommerce_payment_payxcommerce->savePayxOrder($order_id, $response, $merchant_reference);
-        $this->model_checkout_order->addHistory($order_id, (int) $this->config->get('payment_payxcommerce_pending_status_id'), $this->brandName() . ' checkout created.', true);
+        $this->addOrderStatus($order_id, $this->statusSetting('pending_status_id'), $this->brandName() . ' checkout created. Status: pending.');
         $this->response->redirect($checkout_url);
+    }
+
+    public function success(): void
+    {
+        $this->load->model('checkout/order');
+
+        $order_id = (int) ($this->session->data['order_id'] ?? 0);
+        if ($order_id > 0 && $this->model_checkout_order->getOrder($order_id)) {
+            $this->addOrderStatus($order_id, $this->statusSetting('success_status_id'), $this->brandName() . ' return: payment successful.');
+        }
+
+        $this->response->redirect($this->url->link('checkout/success'));
     }
 
     public function webhook(): void
@@ -137,6 +149,9 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
         }
 
         $event_type = $this->eventTypeFromPayload($payload);
+        if ($event_type !== '') {
+            $payload['event_type'] = $event_type;
+        }
         $order_id = $this->model_extension_payxcommerce_payment_payxcommerce->findOrderId($payload);
         $this->model_extension_payxcommerce_payment_payxcommerce->recordWebhookEvent($event_id, $order_id, $event_type, $raw_body);
 
@@ -150,7 +165,7 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
             $this->model_extension_payxcommerce_payment_payxcommerce->updatePayxOrder($order_id, $payload);
             $status_id = $this->statusForEvent($event_type);
             if ($status_id) {
-                $this->model_checkout_order->addHistory($order_id, $status_id, $this->brandName() . ' event: ' . $event_type, true, true);
+                $this->addOrderStatus($order_id, $status_id, $this->brandName() . ' webhook event: ' . $event_type . '.');
             }
             $this->model_extension_payxcommerce_payment_payxcommerce->completeWebhookEvent($event_id);
             $this->response->setOutput('OK');
@@ -166,12 +181,12 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
         $event_type = strtolower(trim($event_type));
 
         return match ($event_type) {
-            'payment.success', 'payment.succeeded' => (int) $this->config->get('payment_payxcommerce_success_status_id'),
-            'payment.failed' => (int) $this->config->get('payment_payxcommerce_failed_status_id'),
-            'payment.cancelled', 'payment.canceled' => (int) $this->config->get('payment_payxcommerce_cancelled_status_id'),
-            'payment.expired' => (int) $this->config->get('payment_payxcommerce_expired_status_id'),
-            'refund.success', 'refund.succeeded', 'payment.refunded' => (int) $this->config->get('payment_payxcommerce_refunded_status_id'),
-            'chargeback.created', 'dispute.created' => (int) $this->config->get('payment_payxcommerce_chargeback_status_id'),
+            'payment.success', 'payment.succeeded' => $this->statusSetting('success_status_id'),
+            'payment.failed' => $this->statusSetting('failed_status_id'),
+            'payment.cancelled', 'payment.canceled' => $this->statusSetting('cancelled_status_id'),
+            'payment.expired' => $this->statusSetting('expired_status_id'),
+            'refund.success', 'refund.succeeded', 'payment.refunded' => $this->statusSetting('refunded_status_id'),
+            'chargeback.created', 'dispute.created' => $this->statusSetting('chargeback_status_id'),
             default => 0,
         };
     }
@@ -188,11 +203,44 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
             return strtolower(trim($payload['data']['event_type']));
         }
 
-        if (!empty($payload['status']) && in_array(strtolower((string) $payload['status']), ['paid', 'success', 'successful', 'succeeded', 'completed'], true)) {
-            return 'payment.success';
+        foreach (['payment_status', 'status'] as $key) {
+            if (empty($payload[$key])) {
+                continue;
+            }
+
+            $status = strtolower((string) $payload[$key]);
+            if (in_array($status, ['paid', 'success', 'successful', 'succeeded', 'completed'], true)) {
+                return 'payment.success';
+            }
+            if (in_array($status, ['failed', 'declined', 'error'], true)) {
+                return 'payment.failed';
+            }
+            if (in_array($status, ['cancelled', 'canceled'], true)) {
+                return 'payment.cancelled';
+            }
+            if ($status === 'expired') {
+                return 'payment.expired';
+            }
+            if (in_array($status, ['refunded', 'refund_successful'], true)) {
+                return 'payment.refunded';
+            }
         }
 
         return '';
+    }
+
+    private function statusSetting(string $key): int
+    {
+        return (int) $this->config->get('payment_payxcommerce_' . $key);
+    }
+
+    private function addOrderStatus(int $order_id, int $status_id, string $comment): void
+    {
+        if ($status_id <= 0) {
+            return;
+        }
+
+        $this->model_checkout_order->addHistory($order_id, $status_id, $comment, true, true);
     }
 
     private function settings(): array
