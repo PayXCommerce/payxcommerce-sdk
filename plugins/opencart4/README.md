@@ -14,6 +14,7 @@ OpenCart 4 extension loaders changed from OpenCart 3, so this folder keeps a sep
 - Per-order request-level webhook URL in each hosted checkout request.
 - Webhook/IPN duplicate protection and event processing log.
 - Payment, refund, dispute, and chargeback status mapping.
+- Signed success webhooks force the configured paid status with OpenCart 4 history override so paid orders do not stay pending or canceled in admin.
 - Redacted debug logging.
 
 ## Package Structure

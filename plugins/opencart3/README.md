@@ -34,6 +34,7 @@ upload/
 - Webhook/IPN duplicate protection and event processing log.
 - Payment, refund, dispute, and chargeback status mapping.
 - Redacted debug logging.
+- OpenCart 3 compatible country lookup using the supported country list fallback.
 
 ## Webhook Routing
 

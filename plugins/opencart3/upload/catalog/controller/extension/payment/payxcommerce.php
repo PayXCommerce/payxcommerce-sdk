@@ -240,9 +240,6 @@ class ControllerExtensionPaymentPayXCommerce extends Controller
     private function countryByIsoCode2(string $iso_code_2): array
     {
         $iso_code_2 = strtoupper($iso_code_2);
-        if (is_callable([$this->model_localisation_country, 'getCountryByIsoCode2'])) {
-            return $this->model_localisation_country->getCountryByIsoCode2($iso_code_2) ?: [];
-        }
 
         foreach ($this->model_localisation_country->getCountries() as $country) {
             if (strtoupper((string) ($country['iso_code_2'] ?? '')) === $iso_code_2) {

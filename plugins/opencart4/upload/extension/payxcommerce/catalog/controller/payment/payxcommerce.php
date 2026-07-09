@@ -136,7 +136,7 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
             return;
         }
 
-        $event_type = (string) ($payload['event_type'] ?? '');
+        $event_type = $this->eventTypeFromPayload($payload);
         $order_id = $this->model_extension_payxcommerce_payment_payxcommerce->findOrderId($payload);
         $this->model_extension_payxcommerce_payment_payxcommerce->recordWebhookEvent($event_id, $order_id, $event_type, $raw_body);
 
@@ -150,7 +150,7 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
             $this->model_extension_payxcommerce_payment_payxcommerce->updatePayxOrder($order_id, $payload);
             $status_id = $this->statusForEvent($event_type);
             if ($status_id) {
-                $this->model_checkout_order->addHistory($order_id, $status_id, $this->brandName() . ' event: ' . $event_type, true);
+                $this->model_checkout_order->addHistory($order_id, $status_id, $this->brandName() . ' event: ' . $event_type, true, true);
             }
             $this->model_extension_payxcommerce_payment_payxcommerce->completeWebhookEvent($event_id);
             $this->response->setOutput('OK');
@@ -163,6 +163,8 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
 
     private function statusForEvent(string $event_type): int
     {
+        $event_type = strtolower(trim($event_type));
+
         return match ($event_type) {
             'payment.success', 'payment.succeeded' => (int) $this->config->get('payment_payxcommerce_success_status_id'),
             'payment.failed' => (int) $this->config->get('payment_payxcommerce_failed_status_id'),
@@ -172,6 +174,25 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
             'chargeback.created', 'dispute.created' => (int) $this->config->get('payment_payxcommerce_chargeback_status_id'),
             default => 0,
         };
+    }
+
+    private function eventTypeFromPayload(array $payload): string
+    {
+        foreach (['event_type', 'type', 'event'] as $key) {
+            if (!empty($payload[$key]) && is_string($payload[$key])) {
+                return strtolower(trim($payload[$key]));
+            }
+        }
+
+        if (!empty($payload['data']['event_type']) && is_string($payload['data']['event_type'])) {
+            return strtolower(trim($payload['data']['event_type']));
+        }
+
+        if (!empty($payload['status']) && in_array(strtolower((string) $payload['status']), ['paid', 'success', 'successful', 'succeeded', 'completed'], true)) {
+            return 'payment.success';
+        }
+
+        return '';
     }
 
     private function settings(): array
@@ -231,9 +252,6 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
     private function countryByIsoCode2(string $iso_code_2): array
     {
         $iso_code_2 = strtoupper($iso_code_2);
-        if (is_callable([$this->model_localisation_country, 'getCountryByIsoCode2'])) {
-            return $this->model_localisation_country->getCountryByIsoCode2($iso_code_2) ?: [];
-        }
 
         foreach ($this->model_localisation_country->getCountries() as $country) {
             if (strtoupper((string) ($country['iso_code_2'] ?? '')) === $iso_code_2) {
