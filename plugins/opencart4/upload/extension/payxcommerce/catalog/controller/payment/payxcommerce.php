@@ -65,6 +65,7 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
         $order['payment_iso_code_2'] = $country_iso;
 
         $merchant_reference = 'OC4-' . $order_id;
+        $return_args = 'order_id=' . $order_id . '&merchant_reference=' . urlencode($merchant_reference);
         $payload = [
             'amount' => (float) $order['total'],
             'currency' => $order['currency_code'],
@@ -79,7 +80,7 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
             ],
             'merchant_reference' => $merchant_reference,
             'merchant_order_id' => (string) $order_id,
-            'success_url' => $this->url->link('extension/payxcommerce/payment/payxcommerce.success'),
+            'success_url' => $this->url->link('extension/payxcommerce/payment/payxcommerce.success', $return_args),
             'failed_url' => $this->url->link('checkout/failure'),
             'cancel_url' => $this->url->link('checkout/checkout'),
             'webhook_url' => $this->url->link('extension/payxcommerce/payment/payxcommerce.webhook'),
@@ -114,13 +115,26 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
     public function success(): void
     {
         $this->load->model('checkout/order');
+        $this->load->model('extension/payxcommerce/payment/payxcommerce');
 
-        $order_id = (int) ($this->session->data['order_id'] ?? 0);
-        if ($order_id > 0 && $this->model_checkout_order->getOrder($order_id)) {
+        $order_id = $this->resolvedReturnOrderId();
+        $merchant_reference = (string) ($this->request->get['merchant_reference'] ?? '');
+        if ($order_id > 0 && $this->model_checkout_order->getOrder($order_id) && $this->model_extension_payxcommerce_payment_payxcommerce->returnReferenceMatches($order_id, $merchant_reference)) {
+            $this->model_extension_payxcommerce_payment_payxcommerce->markReturnSuccess($order_id);
             $this->addOrderStatus($order_id, $this->statusSetting('success_status_id'), $this->brandName() . ' return: payment successful.');
         }
 
         $this->response->redirect($this->url->link('checkout/success'));
+    }
+
+    private function resolvedReturnOrderId(): int
+    {
+        $session_order_id = (int) ($this->session->data['order_id'] ?? 0);
+        if ($session_order_id > 0) {
+            return $session_order_id;
+        }
+
+        return (int) ($this->request->get['order_id'] ?? 0);
     }
 
     public function webhook(): void

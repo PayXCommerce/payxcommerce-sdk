@@ -75,6 +75,21 @@ class ModelExtensionPaymentPayXCommerce extends Model
         return 0;
     }
 
+    public function returnReferenceMatches(int $order_id, string $merchant_reference): bool
+    {
+        if ($order_id <= 0 || $merchant_reference === '') {
+            return false;
+        }
+
+        $query = $this->db->query("SELECT order_id FROM `" . DB_PREFIX . "payxcommerce_order` WHERE order_id = '" . (int) $order_id . "' AND merchant_reference = '" . $this->db->escape($merchant_reference) . "' LIMIT 1");
+        return (bool) $query->num_rows;
+    }
+
+    public function markReturnSuccess(int $order_id): void
+    {
+        $this->db->query("UPDATE `" . DB_PREFIX . "payxcommerce_order` SET payment_status = 'payment.return_success', updated_at = NOW() WHERE order_id = '" . (int) $order_id . "' AND payment_status NOT IN ('payment.success', 'payment.succeeded', 'payment.refunded', 'refund.success', 'refund.succeeded')");
+    }
+
     public function webhookEventExists(string $event_id): bool
     {
         $query = $this->db->query("SELECT id FROM `" . DB_PREFIX . "payxcommerce_webhook_event` WHERE event_id = '" . $this->db->escape($event_id) . "' LIMIT 1");
