@@ -36,6 +36,16 @@ upload/
 - Redacted debug logging.
 - OpenCart 3 compatible country lookup using the supported country list fallback.
 
+## Installer Permission Preflight
+
+If OpenCart fails during the Installer `Copying files` step with PHP `rename()` permission errors, run the bundled preflight helper on the OpenCart 3 root before uploading the ZIP:
+
+```bash
+plugins/opencart3/tools/preflight-permissions.sh /path/to/opencart3
+```
+
+The following OpenCart paths must be writable by the PHP/web-server user because the installer copies payment controllers, language files, templates, images, and the shared API library into them: `system/library`, `admin/controller/extension/payment`, `admin/language/en-gb/extension/payment`, `admin/view/image/payment`, `admin/view/template/extension/payment`, `catalog/controller/extension/payment`, `catalog/language/en-gb/extension/payment`, `catalog/model/extension/payment`, `catalog/view/theme/default/template/extension/payment`, and `system/storage/upload`.
+
 ## Reinstall / Upgrade Notes
 
 OpenCart 3 uploads extension files into the normal `admin/`, `catalog/`, and `system/` folders. If an installer reports that an old path already exists, remove the previous PayXCommerce extension package from Extensions → Installer, refresh modifications, and upload the latest `payxcommerce-opencart3-gateway-*.ocmod.zip` package again. The extension keeps transaction tables and deletes only saved settings when disabled/uninstalled from Payments.
