@@ -16,6 +16,7 @@ OpenCart 4 extension loaders changed from OpenCart 3, so this folder keeps a sep
 - Payment, refund, dispute, and chargeback status mapping.
 - Signed success webhooks force the configured paid status with OpenCart 4 history override so paid orders do not stay pending or canceled in admin.
 - Redacted debug logging.
+- Reinstall-safe uninstall cleanup for stale `extension/payxcommerce/` files before uploading a fresh package.
 
 ## Package Structure
 
@@ -35,6 +36,10 @@ Build and validate the package with:
 ```bash
 scripts/build-opencart4-package.sh
 ```
+
+## Reinstall / Upgrade Notes
+
+OpenCart 4 refuses to upload a package when `extension/payxcommerce/` already exists from an earlier install. Use Extensions → Extensions → Payments → PayXCommerce → Uninstall before uploading a new package; this extension removes its stale extension folder during uninstall so the next upload can proceed. If a previous broken install never reached the Payments list, remove `extension/payxcommerce/` from the OpenCart root manually, then upload `payxcommerce.ocmod.zip` again.
 
 Source files live under:
 

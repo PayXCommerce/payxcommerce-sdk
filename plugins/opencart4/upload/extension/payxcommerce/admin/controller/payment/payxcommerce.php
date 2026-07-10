@@ -88,6 +88,7 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
     {
         $this->load->model('setting/setting');
         $this->model_setting_setting->deleteSetting('payment_payxcommerce');
+        $this->removeExtensionFiles();
     }
 
     private function validateCredentials(array $settings): bool
@@ -128,5 +129,50 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
 
         $serverUrl = defined('HTTPS_SERVER') && HTTPS_SERVER ? (string) HTTPS_SERVER : (defined('HTTP_SERVER') ? (string) HTTP_SERVER : '');
         return rtrim(str_replace('/admin/', '/', $serverUrl), '/') . '/';
+    }
+
+    private function removeExtensionFiles(): void
+    {
+        if (!defined('DIR_EXTENSION')) {
+            return;
+        }
+
+        $extensionRoot = rtrim((string) DIR_EXTENSION, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+        $target = $extensionRoot . 'payxcommerce';
+        $realExtensionRoot = realpath($extensionRoot);
+        $realTarget = realpath($target);
+
+        if (!$realExtensionRoot || !$realTarget || strpos($realTarget, $realExtensionRoot) !== 0 || basename($realTarget) !== 'payxcommerce') {
+            return;
+        }
+
+        $this->deleteDirectory($realTarget);
+    }
+
+    private function deleteDirectory(string $path): void
+    {
+        if (!is_dir($path)) {
+            return;
+        }
+
+        $items = scandir($path);
+        if ($items === false) {
+            return;
+        }
+
+        foreach ($items as $item) {
+            if ($item === '.' || $item === '..') {
+                continue;
+            }
+
+            $itemPath = $path . DIRECTORY_SEPARATOR . $item;
+            if (is_dir($itemPath) && !is_link($itemPath)) {
+                $this->deleteDirectory($itemPath);
+            } elseif (is_file($itemPath) || is_link($itemPath)) {
+                @unlink($itemPath);
+            }
+        }
+
+        @rmdir($path);
     }
 }

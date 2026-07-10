@@ -36,6 +36,10 @@ upload/
 - Redacted debug logging.
 - OpenCart 3 compatible country lookup using the supported country list fallback.
 
+## Reinstall / Upgrade Notes
+
+OpenCart 3 uploads extension files into the normal `admin/`, `catalog/`, and `system/` folders. If an installer reports that an old path already exists, remove the previous PayXCommerce extension package from Extensions → Installer, refresh modifications, and upload the latest `payxcommerce-opencart3-gateway-*.ocmod.zip` package again. The extension keeps transaction tables and deletes only saved settings when disabled/uninstalled from Payments.
+
 ## Webhook Routing
 
 The extension sends the store callback endpoint as `webhook_url` when it creates each PayXCommerce payment request. That lets PayXCommerce route payment, refund, dispute, and chargeback events back to the exact OpenCart store/order flow. Configure the same webhook URL in PayXCommerce merchant settings as a fallback for manually created requests that do not include a request-level webhook URL.
