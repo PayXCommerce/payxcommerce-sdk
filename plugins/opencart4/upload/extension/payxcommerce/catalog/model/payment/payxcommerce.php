@@ -69,7 +69,7 @@ class Payxcommerce extends \Opencart\System\Engine\Model
         if (!empty($payload['merchant_order_id'])) {
             return (int) $payload['merchant_order_id'];
         }
-        foreach (['request_number' => 'payx_request_number', 'invoice_number' => 'payx_invoice_number', 'transaction_reference' => 'payx_transaction_reference'] as $payload_key => $column) {
+        foreach (['request_number' => 'payx_request_number', 'payment_request_id' => 'payx_request_number', 'payment_request_number' => 'payx_request_number', 'invoice_number' => 'payx_invoice_number', 'transaction_reference' => 'payx_transaction_reference'] as $payload_key => $column) {
             if (empty($payload[$payload_key])) {
                 continue;
             }

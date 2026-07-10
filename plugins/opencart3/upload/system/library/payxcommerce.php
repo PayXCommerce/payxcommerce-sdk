@@ -72,9 +72,12 @@ class PayXCommerce
             throw new RuntimeException('Webhook body is not valid JSON.');
         }
 
-        $canonicalBody = json_encode($payload, JSON_UNESCAPED_SLASHES);
+        $canonicalBody = json_encode($payload);
+        $legacyCanonicalBody = json_encode($payload, JSON_UNESCAPED_SLASHES);
         $expected = hash_hmac('sha256', $eventId . '.' . $canonicalBody, $this->setting('webhook_secret'));
-        if (!hash_equals($expected, $signature)) {
+        $legacyExpected = hash_hmac('sha256', $eventId . '.' . $legacyCanonicalBody, $this->setting('webhook_secret'));
+
+        if (!hash_equals($expected, $signature) && !hash_equals($legacyExpected, $signature)) {
             throw new RuntimeException('Invalid webhook signature.');
         }
 
