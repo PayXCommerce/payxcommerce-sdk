@@ -58,24 +58,63 @@ class Payxcommerce extends \Opencart\System\Engine\Model
 
     public function savePayxOrder(int $order_id, array $response, string $merchant_reference): void
     {
-        $this->db->query("INSERT INTO `" . DB_PREFIX . "payxcommerce_order` SET order_id = '" . (int) $order_id . "', payx_request_number = '" . $this->db->escape((string) ($response['request_number'] ?? '')) . "', payx_invoice_number = '" . $this->db->escape((string) ($response['invoice_number'] ?? '')) . "', merchant_reference = '" . $this->db->escape($merchant_reference) . "', checkout_url = '" . $this->db->escape((string) ($response['checkout_url'] ?? '')) . "', payment_status = 'created', created_at = NOW(), updated_at = NOW() ON DUPLICATE KEY UPDATE payx_request_number = VALUES(payx_request_number), payx_invoice_number = VALUES(payx_invoice_number), checkout_url = VALUES(checkout_url), payment_status = VALUES(payment_status), updated_at = NOW()");
+        $this->db->query("INSERT INTO `" . DB_PREFIX . "payxcommerce_order` SET order_id = '" . (int) $order_id . "', payx_request_number = '" . $this->db->escape((string) ($response['request_number'] ?? '')) . "', payx_invoice_number = '" . $this->db->escape((string) ($response['invoice_number'] ?? '')) . "', merchant_reference = '" . $this->db->escape($merchant_reference) . "', checkout_url = '" . $this->db->escape((string) ($response['checkout_url'] ?? '')) . "', payment_status = 'created', created_at = NOW(), updated_at = NOW() ON DUPLICATE KEY UPDATE payx_request_number = VALUES(payx_request_number), payx_invoice_number = VALUES(payx_invoice_number), merchant_reference = VALUES(merchant_reference), checkout_url = VALUES(checkout_url), payment_status = VALUES(payment_status), updated_at = NOW()");
     }
 
     public function findOrderId(array $payload): int
     {
-        if (!empty($payload['metadata']['order_id'])) {
-            return (int) $payload['metadata']['order_id'];
-        }
-        if (!empty($payload['merchant_order_id'])) {
-            return (int) $payload['merchant_order_id'];
-        }
-        foreach (['request_number' => 'payx_request_number', 'payment_request_id' => 'payx_request_number', 'payment_request_number' => 'payx_request_number', 'invoice_number' => 'payx_invoice_number', 'transaction_reference' => 'payx_transaction_reference'] as $payload_key => $column) {
-            if (empty($payload[$payload_key])) {
+        foreach ([
+            'metadata.order_id',
+            'metadata.opencart_order_id',
+            'data.metadata.order_id',
+            'data.metadata.opencart_order_id',
+            'payload.metadata.order_id',
+            'payload.metadata.opencart_order_id',
+            'resource.metadata.order_id',
+            'resource.metadata.opencart_order_id',
+            'merchant_order_id',
+            'merchant_reference',
+            'order_id',
+            'data.merchant_order_id',
+            'data.merchant_reference',
+            'data.order_id',
+            'payload.merchant_order_id',
+            'payload.merchant_reference',
+            'payload.order_id',
+            'resource.merchant_order_id',
+            'resource.merchant_reference',
+            'resource.order_id',
+        ] as $path) {
+            $value = $this->payloadValue($payload, $path);
+            if ($value === null || $value === '') {
                 continue;
             }
-            $query = $this->db->query("SELECT order_id FROM `" . DB_PREFIX . "payxcommerce_order` WHERE `" . $column . "` = '" . $this->db->escape((string) $payload[$payload_key]) . "' LIMIT 1");
-            if ($query->num_rows) {
-                return (int) $query->row['order_id'];
+            if (is_numeric($value)) {
+                return (int) $value;
+            }
+            if (preg_match('/^OC4-(\d+)$/i', (string) $value, $matches)) {
+                return (int) $matches[1];
+            }
+        }
+
+        foreach ([
+            'request_number' => 'payx_request_number',
+            'payment_request_id' => 'payx_request_number',
+            'payment_request_number' => 'payx_request_number',
+            'reference' => 'payx_request_number',
+            'invoice_number' => 'payx_invoice_number',
+            'transaction_reference' => 'payx_transaction_reference',
+            'gateway_transaction_id' => 'payx_transaction_reference',
+            'merchant_reference' => 'merchant_reference',
+        ] as $payload_key => $column) {
+            foreach ($this->payloadCandidates($payload, $payload_key) as $candidate) {
+                if ($candidate === '') {
+                    continue;
+                }
+                $query = $this->db->query("SELECT order_id FROM `" . DB_PREFIX . "payxcommerce_order` WHERE `" . $column . "` = '" . $this->db->escape($candidate) . "' LIMIT 1");
+                if ($query->num_rows) {
+                    return (int) $query->row['order_id'];
+                }
             }
         }
 
@@ -115,7 +154,50 @@ class Payxcommerce extends \Opencart\System\Engine\Model
 
     public function updatePayxOrder(int $order_id, array $payload): void
     {
-        $this->db->query("UPDATE `" . DB_PREFIX . "payxcommerce_order` SET payx_payment_id = '" . $this->db->escape((string) ($payload['payment_id'] ?? '')) . "', payx_transaction_reference = '" . $this->db->escape((string) ($payload['transaction_reference'] ?? '')) . "', payment_status = '" . $this->db->escape((string) ($payload['event_type'] ?? '')) . "', settlement_status = '" . $this->db->escape((string) ($payload['settlement_status'] ?? '')) . "', updated_at = NOW() WHERE order_id = '" . (int) $order_id . "'");
+        $payment_id = $this->firstPayloadValue($payload, ['payment_id', 'data.payment_id', 'payload.payment_id', 'resource.payment_id']);
+        $transaction_reference = $this->firstPayloadValue($payload, ['transaction_reference', 'gateway_transaction_id', 'data.transaction_reference', 'data.gateway_transaction_id', 'payload.transaction_reference', 'payload.gateway_transaction_id', 'resource.transaction_reference', 'resource.gateway_transaction_id']);
+        $settlement_status = $this->firstPayloadValue($payload, ['settlement_status', 'data.settlement_status', 'payload.settlement_status', 'resource.settlement_status']);
+        $event_type = (string) ($payload['event_type'] ?? '');
+
+        $this->db->query("UPDATE `" . DB_PREFIX . "payxcommerce_order` SET payx_payment_id = IF('" . $this->db->escape((string) $payment_id) . "' = '', payx_payment_id, '" . $this->db->escape((string) $payment_id) . "'), payx_transaction_reference = IF('" . $this->db->escape((string) $transaction_reference) . "' = '', payx_transaction_reference, '" . $this->db->escape((string) $transaction_reference) . "'), payment_status = IF('" . $this->db->escape($event_type) . "' = '', payment_status, '" . $this->db->escape($event_type) . "'), settlement_status = IF('" . $this->db->escape((string) $settlement_status) . "' = '', settlement_status, '" . $this->db->escape((string) $settlement_status) . "'), updated_at = NOW() WHERE order_id = '" . (int) $order_id . "'");
+    }
+
+    private function payloadCandidates(array $payload, string $key): array
+    {
+        $values = [];
+        foreach ([$key, 'data.' . $key, 'payload.' . $key, 'resource.' . $key] as $path) {
+            $value = $this->payloadValue($payload, $path);
+            if ($value !== null && $value !== '') {
+                $values[] = (string) $value;
+            }
+        }
+
+        return array_values(array_unique($values));
+    }
+
+    private function firstPayloadValue(array $payload, array $paths): mixed
+    {
+        foreach ($paths as $path) {
+            $value = $this->payloadValue($payload, $path);
+            if ($value !== null && $value !== '') {
+                return $value;
+            }
+        }
+
+        return '';
+    }
+
+    private function payloadValue(array $payload, string $path): mixed
+    {
+        $value = $payload;
+        foreach (explode('.', $path) as $segment) {
+            if (!is_array($value) || !array_key_exists($segment, $value)) {
+                return null;
+            }
+            $value = $value[$segment];
+        }
+
+        return $value;
     }
 
     public function updateCheckoutContact(array $order, string $phone, array $country): void

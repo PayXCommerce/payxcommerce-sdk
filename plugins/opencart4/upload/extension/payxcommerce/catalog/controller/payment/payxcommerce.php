@@ -85,7 +85,14 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
             'cancel_url' => $this->url->link('checkout/checkout'),
             'webhook_url' => $this->url->link('extension/payxcommerce/payment/payxcommerce.webhook'),
             'ipn_events' => ['payment.succeeded', 'payment.failed', 'payment.cancelled', 'payment.expired', 'refund.succeeded', 'payment.refunded', 'chargeback.created', 'dispute.created'],
-            'metadata' => ['platform' => 'opencart', 'platform_version' => '4', 'order_id' => (string) $order_id, 'store_id' => (string) $order['store_id']],
+            'metadata' => [
+                'platform' => 'opencart',
+                'platform_version' => '4',
+                'order_id' => (string) $order_id,
+                'opencart_order_id' => (string) $order_id,
+                'store_id' => (string) $order['store_id'],
+                'merchant_reference' => $merchant_reference,
+            ],
             'is_test' => $this->config->get('payment_payxcommerce_environment') !== 'live',
         ];
 
@@ -157,6 +164,10 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
             return;
         }
 
+        if ($event_id === '') {
+            $event_id = 'payload-' . hash('sha256', $raw_body);
+        }
+
         if ($event_id !== '' && $this->model_extension_payxcommerce_payment_payxcommerce->webhookEventExists($event_id)) {
             $this->response->setOutput('Duplicate ignored');
             return;
@@ -213,16 +224,20 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
             }
         }
 
-        if (!empty($payload['data']['event_type']) && is_string($payload['data']['event_type'])) {
-            return strtolower(trim($payload['data']['event_type']));
+        foreach (['data.event_type', 'payload.event_type', 'resource.event_type'] as $path) {
+            $value = $this->payloadValue($payload, $path);
+            if (is_string($value) && $value !== '') {
+                return strtolower(trim($value));
+            }
         }
 
-        foreach (['payment_status', 'status'] as $key) {
-            if (empty($payload[$key])) {
+        foreach (['payment_status', 'status', 'data.payment_status', 'data.status', 'payload.payment_status', 'payload.status', 'resource.payment_status', 'resource.status'] as $path) {
+            $value = $this->payloadValue($payload, $path);
+            if ($value === null || $value === '') {
                 continue;
             }
 
-            $status = strtolower((string) $payload[$key]);
+            $status = strtolower((string) $value);
             if (in_array($status, ['paid', 'success', 'successful', 'succeeded', 'completed'], true)) {
                 return 'payment.success';
             }
@@ -241,6 +256,19 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
         }
 
         return '';
+    }
+
+    private function payloadValue(array $payload, string $path): mixed
+    {
+        $value = $payload;
+        foreach (explode('.', $path) as $segment) {
+            if (!is_array($value) || !array_key_exists($segment, $value)) {
+                return null;
+            }
+            $value = $value[$segment];
+        }
+
+        return $value;
     }
 
     private function statusSetting(string $key): int
