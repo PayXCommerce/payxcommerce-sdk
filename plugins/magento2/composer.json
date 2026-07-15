@@ -1,6 +1,7 @@
 {
   "name": "payxcommerce/magento2-payment",
   "description": "PayXCommerce hosted checkout payment module for Magento 2.",
+  "version": "0.3.3",
   "type": "magento2-module",
   "license": "MIT",
   "require": {
