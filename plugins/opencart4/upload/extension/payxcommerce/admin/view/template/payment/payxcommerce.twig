@@ -1,49 +1,28 @@
 {{ header }}{{ column_left }}
 <div id="content">
-  <div class="page-header"><div class="container-fluid"><h1><img src="{{ icon_url }}" alt="PayXCommerce" style="width:32px;height:32px;border-radius:7px;margin-right:8px;vertical-align:middle;"> PayXCommerce</h1></div></div>
+  <div class="page-header"><div class="container-fluid"><h1><img src="{{ icon_url }}" alt="{{ heading_title }}" style="width:32px;height:32px;border-radius:7px;margin-right:8px;vertical-align:middle;"> {{ heading_title }}</h1></div></div>
   <div class="container-fluid">
     {% if error_warning %}<div class="alert alert-danger">{{ error_warning }}</div>{% endif %}
-    <div class="alert alert-info"><strong>Webhook URL:</strong> {{ webhook_url }}<br><small>This URL is sent on each payment request and can also be saved in PayXCommerce merchant settings as a fallback endpoint.</small></div>
+    <div class="alert alert-info"><strong>{{ text_webhook_url }}:</strong> {{ webhook_url }}<br><small>{{ text_webhook_help }}</small></div>
     <form action="{{ action }}" method="post" data-oc-toggle="ajax">
-      <div class="card"><div class="card-header"><img src="{{ icon_url }}" alt="PayXCommerce" style="width:24px;height:24px;border-radius:5px;margin-right:6px;vertical-align:middle;"> Settings</div><div class="card-body">
-        <div class="row mb-3"><label class="col-sm-2 col-form-label">Status</label><div class="col-sm-10"><select name="payment_payxcommerce_status" class="form-select"><option value="1" {% if payment_payxcommerce_status %}selected{% endif %}>Enabled</option><option value="0" {% if not payment_payxcommerce_status %}selected{% endif %}>Disabled</option></select></div></div>
-        <div class="row mb-3"><label class="col-sm-2 col-form-label">Environment</label><div class="col-sm-10"><select name="payment_payxcommerce_environment" class="form-select"><option value="test" {% if payment_payxcommerce_environment != 'live' %}selected{% endif %}>Test</option><option value="live" {% if payment_payxcommerce_environment == 'live' %}selected{% endif %}>Live</option></select></div></div>
-        <div class="row mb-3"><label class="col-sm-2 col-form-label">Auth Method</label><div class="col-sm-10"><select name="payment_payxcommerce_auth_method" class="form-select" id="input-payxcommerce-auth-method"><option value="hmac" {% if payment_payxcommerce_auth_method != 'bearer' %}selected{% endif %}>HMAC API Key</option><option value="bearer" {% if payment_payxcommerce_auth_method == 'bearer' %}selected{% endif %}>Developer App OAuth</option></select><div class="form-text">Only the required credentials for the selected authentication method are shown.</div></div></div>
-        {% set text_fields = [
-          {'field':'base_url','label':'API Base URL','value':payment_payxcommerce_base_url},
-          {'field':'brand_name','label':'Public Brand Name','value':payment_payxcommerce_brand_name},
-          {'field':'title','label':'Payment Title','value':payment_payxcommerce_title},
-          {'field':'description','label':'Payment Description','value':payment_payxcommerce_description},
-          {'field':'button_text','label':'Checkout Button Text','value':payment_payxcommerce_button_text},
-          {'field':'allowed_currencies','label':'Allowed Currencies','value':payment_payxcommerce_allowed_currencies},
-          {'field':'allowed_countries','label':'Allowed Countries','value':payment_payxcommerce_allowed_countries},
-          {'field':'min_total','label':'Minimum Total','value':payment_payxcommerce_min_total},
-          {'field':'max_total','label':'Maximum Total','value':payment_payxcommerce_max_total},
-          {'field':'sort_order','label':'Sort Order','value':payment_payxcommerce_sort_order}
-        ] %}
+      <div class="card"><div class="card-header"><img src="{{ icon_url }}" alt="{{ heading_title }}" style="width:24px;height:24px;border-radius:5px;margin-right:6px;vertical-align:middle;"> {{ text_settings }}</div><div class="card-body">
+        <div class="row mb-3"><label class="col-sm-2 col-form-label">{{ entry_status }}</label><div class="col-sm-10"><select name="payment_payxcommerce_status" class="form-select"><option value="1" {% if payment_payxcommerce_status %}selected{% endif %}>{{ text_enabled }}</option><option value="0" {% if not payment_payxcommerce_status %}selected{% endif %}>{{ text_disabled }}</option></select></div></div>
+        <div class="row mb-3"><label class="col-sm-2 col-form-label">{{ entry_environment }}</label><div class="col-sm-10"><select name="payment_payxcommerce_environment" class="form-select"><option value="test" {% if payment_payxcommerce_environment != 'live' %}selected{% endif %}>{{ text_test }}</option><option value="live" {% if payment_payxcommerce_environment == 'live' %}selected{% endif %}>{{ text_live }}</option></select></div></div>
+        <div class="row mb-3"><label class="col-sm-2 col-form-label">{{ entry_auth_method }}</label><div class="col-sm-10"><select name="payment_payxcommerce_auth_method" class="form-select" id="input-payxcommerce-auth-method"><option value="hmac" {% if payment_payxcommerce_auth_method != 'bearer' %}selected{% endif %}>{{ text_hmac }}</option><option value="bearer" {% if payment_payxcommerce_auth_method == 'bearer' %}selected{% endif %}>{{ text_bearer }}</option></select><div class="form-text">{{ text_auth_help }}</div></div></div>
         {% for item in text_fields %}
-        <div class="row mb-3"><label class="col-sm-2 col-form-label">{{ item.label }}</label><div class="col-sm-10"><input type="text" name="payment_payxcommerce_{{ item.field }}" value="{{ item.value }}" class="form-control"></div></div>
+        <div class="row mb-3"><label class="col-sm-2 col-form-label">{{ item.label }}</label><div class="col-sm-10"><input type="text" name="payment_payxcommerce_{{ item.field }}" value="{{ item.value }}" class="form-control">{% if item.help %}<div class="form-text">{{ item.help }}</div>{% endif %}</div></div>
         {% endfor %}
-        <div class="row mb-3 payx-auth-field payx-auth-hmac"><label class="col-sm-2 col-form-label">Public Key</label><div class="col-sm-10"><input type="text" name="payment_payxcommerce_public_key" value="{{ payment_payxcommerce_public_key }}" class="form-control"></div></div>
-        <div class="row mb-3 payx-auth-field payx-auth-hmac"><label class="col-sm-2 col-form-label">Secret Key</label><div class="col-sm-10"><input type="password" name="payment_payxcommerce_secret_key" value="" placeholder="Leave blank to keep current secret" class="form-control"></div></div>
-        <div class="row mb-3 payx-auth-field payx-auth-bearer"><label class="col-sm-2 col-form-label">Client ID</label><div class="col-sm-10"><input type="text" name="payment_payxcommerce_client_id" value="{{ payment_payxcommerce_client_id }}" class="form-control"></div></div>
-        <div class="row mb-3 payx-auth-field payx-auth-bearer"><label class="col-sm-2 col-form-label">Client Secret</label><div class="col-sm-10"><input type="password" name="payment_payxcommerce_client_secret" value="" placeholder="Leave blank to keep current secret" class="form-control"></div></div>
+        <div class="row mb-3 payx-auth-field payx-auth-hmac"><label class="col-sm-2 col-form-label">{{ entry_public_key }}</label><div class="col-sm-10"><input type="text" name="payment_payxcommerce_public_key" value="{{ payment_payxcommerce_public_key }}" class="form-control"></div></div>
+        <div class="row mb-3 payx-auth-field payx-auth-hmac"><label class="col-sm-2 col-form-label">{{ entry_secret_key }}</label><div class="col-sm-10"><input type="password" name="payment_payxcommerce_secret_key" value="" placeholder="{{ help_secret_keep }}" class="form-control"></div></div>
+        <div class="row mb-3 payx-auth-field payx-auth-bearer"><label class="col-sm-2 col-form-label">{{ entry_client_id }}</label><div class="col-sm-10"><input type="text" name="payment_payxcommerce_client_id" value="{{ payment_payxcommerce_client_id }}" class="form-control"></div></div>
+        <div class="row mb-3 payx-auth-field payx-auth-bearer"><label class="col-sm-2 col-form-label">{{ entry_client_secret }}</label><div class="col-sm-10"><input type="password" name="payment_payxcommerce_client_secret" value="" placeholder="{{ help_client_secret_keep }}" class="form-control"></div></div>
 
-        <div class="row mb-3"><label class="col-sm-2 col-form-label">Geo Zone</label><div class="col-sm-10"><select name="payment_payxcommerce_geo_zone_id" class="form-select"><option value="0">All Zones</option>{% for geo_zone in geo_zones %}<option value="{{ geo_zone.geo_zone_id }}" {% if geo_zone.geo_zone_id == payment_payxcommerce_geo_zone_id %}selected{% endif %}>{{ geo_zone.name }}</option>{% endfor %}</select></div></div>
-        {% set status_fields = [
-          {'field':'pending_status_id','label':'Pending Status','value':payment_payxcommerce_pending_status_id},
-          {'field':'success_status_id','label':'Successful Status','value':payment_payxcommerce_success_status_id},
-          {'field':'failed_status_id','label':'Failed Status','value':payment_payxcommerce_failed_status_id},
-          {'field':'cancelled_status_id','label':'Cancelled Status','value':payment_payxcommerce_cancelled_status_id},
-          {'field':'expired_status_id','label':'Expired Status','value':payment_payxcommerce_expired_status_id},
-          {'field':'refunded_status_id','label':'Refunded Status','value':payment_payxcommerce_refunded_status_id},
-          {'field':'chargeback_status_id','label':'Chargeback Status','value':payment_payxcommerce_chargeback_status_id}
-        ] %}
+        <div class="row mb-3"><label class="col-sm-2 col-form-label">{{ entry_geo_zone }}</label><div class="col-sm-10"><select name="payment_payxcommerce_geo_zone_id" class="form-select"><option value="0">{{ text_all_zones }}</option>{% for geo_zone in geo_zones %}<option value="{{ geo_zone.geo_zone_id }}" {% if geo_zone.geo_zone_id == payment_payxcommerce_geo_zone_id %}selected{% endif %}>{{ geo_zone.name }}</option>{% endfor %}</select></div></div>
         {% for item in status_fields %}
         <div class="row mb-3"><label class="col-sm-2 col-form-label">{{ item.label }}</label><div class="col-sm-10"><select name="payment_payxcommerce_{{ item.field }}" class="form-select">{% for status in order_statuses %}<option value="{{ status.order_status_id }}" {% if item.value == status.order_status_id %}selected{% endif %}>{{ status.name }}</option>{% endfor %}</select></div></div>
         {% endfor %}
-        <div class="row mb-3"><label class="col-sm-2 col-form-label">Webhook Secret</label><div class="col-sm-10"><input type="password" name="payment_payxcommerce_webhook_secret" value="" placeholder="Leave blank to keep current secret" class="form-control"></div></div>
-        <div class="text-end"><button type="submit" class="btn btn-primary">Save</button> <a href="{{ cancel }}" class="btn btn-light">Cancel</a></div>
+        <div class="row mb-3"><label class="col-sm-2 col-form-label">{{ entry_webhook_secret }}</label><div class="col-sm-10"><input type="password" name="payment_payxcommerce_webhook_secret" value="" placeholder="{{ help_webhook_secret_keep }}" class="form-control"></div></div>
+        <div class="text-end"><button type="submit" class="btn btn-primary">{{ button_save }}</button> <a href="{{ cancel }}" class="btn btn-light">{{ button_cancel }}</a></div>
       </div></div>
     </form>
   </div>

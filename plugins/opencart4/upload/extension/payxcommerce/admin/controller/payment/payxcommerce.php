@@ -64,6 +64,34 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
         foreach ($defaults as $key => $default) {
             $data[$key] = $this->request->post[$key] ?? ($this->config->get($key) ?? $default);
         }
+
+        foreach ($this->languageKeys() as $key) {
+            $data[$key] = $this->language->get($key);
+        }
+
+        $data['text_fields'] = [
+            ['field' => 'base_url', 'label' => $data['entry_base_url'], 'help' => $data['help_base_url'], 'value' => $data['payment_payxcommerce_base_url']],
+            ['field' => 'brand_name', 'label' => $data['entry_brand_name'], 'help' => $data['help_public_brand'], 'value' => $data['payment_payxcommerce_brand_name']],
+            ['field' => 'title', 'label' => $data['entry_title'], 'help' => $data['help_title'], 'value' => $data['payment_payxcommerce_title']],
+            ['field' => 'description', 'label' => $data['entry_description'], 'help' => $data['help_description'], 'value' => $data['payment_payxcommerce_description']],
+            ['field' => 'button_text', 'label' => $data['entry_button_text'], 'help' => $data['help_button_text'], 'value' => $data['payment_payxcommerce_button_text']],
+            ['field' => 'allowed_currencies', 'label' => $data['entry_allowed_currencies'], 'help' => $data['help_allowed_currencies'], 'value' => $data['payment_payxcommerce_allowed_currencies']],
+            ['field' => 'allowed_countries', 'label' => $data['entry_allowed_countries'], 'help' => $data['help_allowed_countries'], 'value' => $data['payment_payxcommerce_allowed_countries']],
+            ['field' => 'min_total', 'label' => $data['entry_min_total'], 'help' => $data['help_min_total'], 'value' => $data['payment_payxcommerce_min_total']],
+            ['field' => 'max_total', 'label' => $data['entry_max_total'], 'help' => $data['help_max_total'], 'value' => $data['payment_payxcommerce_max_total']],
+            ['field' => 'sort_order', 'label' => $data['entry_sort_order'], 'help' => $data['help_sort_order'], 'value' => $data['payment_payxcommerce_sort_order']],
+        ];
+
+        $data['status_fields'] = [
+            ['field' => 'pending_status_id', 'label' => $data['entry_pending_status'], 'value' => $data['payment_payxcommerce_pending_status_id']],
+            ['field' => 'success_status_id', 'label' => $data['entry_success_status'], 'value' => $data['payment_payxcommerce_success_status_id']],
+            ['field' => 'failed_status_id', 'label' => $data['entry_failed_status'], 'value' => $data['payment_payxcommerce_failed_status_id']],
+            ['field' => 'cancelled_status_id', 'label' => $data['entry_cancelled_status'], 'value' => $data['payment_payxcommerce_cancelled_status_id']],
+            ['field' => 'expired_status_id', 'label' => $data['entry_expired_status'], 'value' => $data['payment_payxcommerce_expired_status_id']],
+            ['field' => 'refunded_status_id', 'label' => $data['entry_refunded_status'], 'value' => $data['payment_payxcommerce_refunded_status_id']],
+            ['field' => 'chargeback_status_id', 'label' => $data['entry_chargeback_status'], 'value' => $data['payment_payxcommerce_chargeback_status_id']],
+        ];
+
         $data['error_warning'] = $this->error['warning'] ?? '';
         $data['order_statuses'] = $this->model_localisation_order_status->getOrderStatuses();
         $data['geo_zones'] = $this->model_localisation_geo_zone->getGeoZones();
@@ -107,6 +135,65 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
             $this->log->write('PayXCommerce credential validation failed: ' . \Opencart\System\Library\Payxcommerce::redact($exception->getMessage()));
             return false;
         }
+    }
+
+    private function languageKeys(): array
+    {
+        return [
+            'heading_title',
+            'text_settings',
+            'text_webhook_url',
+            'text_webhook_help',
+            'text_enabled',
+            'text_disabled',
+            'text_test',
+            'text_live',
+            'text_all_zones',
+            'text_hmac',
+            'text_bearer',
+            'text_auth_help',
+            'button_save',
+            'button_cancel',
+            'entry_status',
+            'entry_environment',
+            'entry_auth_method',
+            'entry_base_url',
+            'entry_brand_name',
+            'entry_title',
+            'entry_description',
+            'entry_button_text',
+            'entry_allowed_currencies',
+            'entry_allowed_countries',
+            'entry_min_total',
+            'entry_max_total',
+            'entry_sort_order',
+            'entry_public_key',
+            'entry_secret_key',
+            'entry_client_id',
+            'entry_client_secret',
+            'entry_geo_zone',
+            'entry_pending_status',
+            'entry_success_status',
+            'entry_failed_status',
+            'entry_cancelled_status',
+            'entry_expired_status',
+            'entry_refunded_status',
+            'entry_chargeback_status',
+            'entry_webhook_secret',
+            'help_base_url',
+            'help_public_brand',
+            'help_title',
+            'help_description',
+            'help_button_text',
+            'help_allowed_currencies',
+            'help_allowed_countries',
+            'help_min_total',
+            'help_max_total',
+            'help_sort_order',
+            'help_secret_keep',
+            'help_client_secret_keep',
+            'help_webhook_secret_keep',
+        ];
     }
 
     private function validate(): bool
