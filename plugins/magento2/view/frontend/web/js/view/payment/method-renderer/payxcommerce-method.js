@@ -46,7 +46,8 @@ define([
 
             fullScreenLoader.startLoader();
             $.when(placeOrderAction(this.getData(), this.messageContainer)).done(function () {
-                window.location.replace(urlBuilder.build('payxcommerce/checkout/start'));
+                var redirectUrl = window.checkoutConfig.payment.payxcommerce.redirectUrl || 'payxcommerce/checkout/start';
+                window.location.replace(urlBuilder.build(redirectUrl));
             }).fail(function () {
                 fullScreenLoader.stopLoader();
             });
