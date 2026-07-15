@@ -80,6 +80,9 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
 
     public function install(): void
     {
+        $this->cleanupLegacyPartialInstall();
+        $this->grantPermissions();
+
         $this->db->query("CREATE TABLE IF NOT EXISTS `" . DB_PREFIX . "payxcommerce_order` (`id` INT NOT NULL AUTO_INCREMENT, `order_id` INT NOT NULL, `payx_request_number` VARCHAR(64) DEFAULT NULL, `payx_invoice_number` VARCHAR(64) DEFAULT NULL, `payx_payment_id` VARCHAR(64) DEFAULT NULL, `payx_transaction_reference` VARCHAR(64) DEFAULT NULL, `merchant_reference` VARCHAR(128) DEFAULT NULL, `checkout_url` TEXT DEFAULT NULL, `payment_status` VARCHAR(64) DEFAULT NULL, `settlement_status` VARCHAR(64) DEFAULT NULL, `created_at` DATETIME DEFAULT NULL, `updated_at` DATETIME DEFAULT NULL, PRIMARY KEY (`id`), UNIQUE KEY `order_id` (`order_id`), KEY `payx_request_number` (`payx_request_number`), KEY `payx_invoice_number` (`payx_invoice_number`), KEY `payx_transaction_reference` (`payx_transaction_reference`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
         $this->db->query("CREATE TABLE IF NOT EXISTS `" . DB_PREFIX . "payxcommerce_webhook_event` (`id` INT NOT NULL AUTO_INCREMENT, `event_id` VARCHAR(128) NOT NULL, `order_id` INT DEFAULT NULL, `event_type` VARCHAR(128) DEFAULT NULL, `payload_hash` VARCHAR(64) DEFAULT NULL, `processing_status` VARCHAR(32) DEFAULT NULL, `error_message` TEXT DEFAULT NULL, `created_at` DATETIME DEFAULT NULL, `processed_at` DATETIME DEFAULT NULL, PRIMARY KEY (`id`), UNIQUE KEY `event_id` (`event_id`), KEY `order_id` (`order_id`), KEY `event_type` (`event_type`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     }
@@ -88,6 +91,8 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
     {
         $this->load->model('setting/setting');
         $this->model_setting_setting->deleteSetting('payment_payxcommerce');
+        $this->cleanupUninstallRecords();
+        $this->removePermissions();
         $this->removeExtensionFiles();
     }
 
@@ -174,5 +179,76 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
         }
 
         @rmdir($path);
+    }
+
+    private function cleanupLegacyPartialInstall(): void
+    {
+        $this->deleteIfTableExists('extension', "(`code` IN ('payxcommerce_heading_title', 'payxcommerce_text_payxcommerce') OR `extension` IN ('payxcommerce_heading_title', 'payxcommerce_text_payxcommerce'))");
+        $this->deleteIfTableExists('extension_install', "(`code` IN ('payxcommerce_heading_title', 'payxcommerce_text_payxcommerce') OR `name` IN ('payxcommerce_heading_title', 'payxcommerce_text_payxcommerce'))");
+    }
+
+    private function cleanupUninstallRecords(): void
+    {
+        $this->deleteIfTableExists('setting', "`code` = 'payment_payxcommerce' OR `key` LIKE 'payment_payxcommerce_%'");
+        $this->deleteIfTableExists('event', "`code` LIKE 'payxcommerce%' OR `action` LIKE '%payxcommerce%'");
+        $this->deleteIfTableExists('modification', "`code` LIKE '%payxcommerce%' OR `name` LIKE '%PayXCommerce%'");
+        $this->deleteIfTableExists('extension', "(`code` IN ('payxcommerce', 'payxcommerce.payxcommerce', 'payxcommerce_heading_title', 'payxcommerce_text_payxcommerce') OR `extension` IN ('payxcommerce', 'payxcommerce_heading_title', 'payxcommerce_text_payxcommerce'))");
+        $this->deleteIfTableExists('extension_path', "`path` LIKE '%payxcommerce%'");
+        $this->deleteIfTableExists('extension_install', "(`code` LIKE '%payxcommerce%' OR `name` LIKE '%PayXCommerce%' OR `name` IN ('payxcommerce_heading_title', 'payxcommerce_text_payxcommerce'))");
+    }
+
+    private function grantPermissions(): void
+    {
+        $this->updateAdministratorPermissions(function (array $permissions): array {
+            foreach (['access', 'modify'] as $type) {
+                $permissions[$type] = $permissions[$type] ?? [];
+                if (!in_array('extension/payxcommerce/payment/payxcommerce', $permissions[$type], true)) {
+                    $permissions[$type][] = 'extension/payxcommerce/payment/payxcommerce';
+                }
+            }
+
+            return $permissions;
+        });
+    }
+
+    private function removePermissions(): void
+    {
+        $this->updateAdministratorPermissions(function (array $permissions): array {
+            foreach (['access', 'modify'] as $type) {
+                $permissions[$type] = array_values(array_filter($permissions[$type] ?? [], static function ($permission) {
+                    return strpos((string) $permission, 'extension/payxcommerce/') !== 0;
+                }));
+            }
+
+            return $permissions;
+        });
+    }
+
+    private function updateAdministratorPermissions(callable $callback): void
+    {
+        if (!$this->tableExists('user_group')) {
+            return;
+        }
+
+        $query = $this->db->query("SELECT `user_group_id`, `permission` FROM `" . DB_PREFIX . "user_group` WHERE `name` = 'Administrator'");
+        foreach ($query->rows as $row) {
+            $permissions = json_decode((string) $row['permission'], true);
+            $permissions = is_array($permissions) ? $permissions : [];
+            $permissions = $callback($permissions);
+            $this->db->query("UPDATE `" . DB_PREFIX . "user_group` SET `permission` = '" . $this->db->escape(json_encode($permissions)) . "' WHERE `user_group_id` = '" . (int) $row['user_group_id'] . "'");
+        }
+    }
+
+    private function deleteIfTableExists(string $table, string $where): void
+    {
+        if ($this->tableExists($table)) {
+            $this->db->query("DELETE FROM `" . DB_PREFIX . $table . "` WHERE " . $where);
+        }
+    }
+
+    private function tableExists(string $table): bool
+    {
+        $query = $this->db->query("SHOW TABLES LIKE '" . $this->db->escape(DB_PREFIX . $table) . "'");
+        return (bool) $query->num_rows;
     }
 }
