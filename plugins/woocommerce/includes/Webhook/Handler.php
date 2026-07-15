@@ -65,39 +65,124 @@ final class Handler
 
     private function findOrder(array $payload): ?WC_Order
     {
-        $orderId = $payload['metadata']['order_id'] ?? $payload['merchant_order_id'] ?? null;
-        if ($orderId) {
+        foreach ([
+            'metadata.order_id',
+            'metadata.woocommerce_order_id',
+            'data.metadata.order_id',
+            'data.metadata.woocommerce_order_id',
+            'payload.metadata.order_id',
+            'payload.metadata.woocommerce_order_id',
+            'resource.metadata.order_id',
+            'resource.metadata.woocommerce_order_id',
+            'merchant_order_id',
+            'data.merchant_order_id',
+            'payload.merchant_order_id',
+            'resource.merchant_order_id',
+        ] as $path) {
+            $orderId = $this->payloadValue($payload, $path);
+            if ($orderId === null || (string) $orderId === '') {
+                continue;
+            }
+
             $order = wc_get_order((int) $orderId);
             if ($order) {
                 return $order;
             }
         }
 
-        foreach (['request_number' => Metadata::REQUEST_NUMBER, 'invoice_number' => Metadata::INVOICE_NUMBER, 'transaction_reference' => Metadata::TRANSACTION_REFERENCE] as $payloadKey => $metaKey) {
-            $value = (string) ($payload[$payloadKey] ?? '');
-            if ($value === '') {
-                continue;
-            }
-            $orders = wc_get_orders(['limit' => 1, 'meta_key' => $metaKey, 'meta_value' => $value]);
-            if (!empty($orders)) {
-                return $orders[0];
+        $metaLookups = [
+            Metadata::REQUEST_NUMBER => [
+                'request_number',
+                'payment_request_id',
+                'payment_request_number',
+                'reference',
+                'data.request_number',
+                'data.payment_request_id',
+                'data.payment_request_number',
+                'data.reference',
+                'payload.request_number',
+                'payload.payment_request_id',
+                'payload.payment_request_number',
+                'payload.reference',
+                'resource.request_number',
+                'resource.payment_request_id',
+                'resource.payment_request_number',
+                'resource.reference',
+            ],
+            Metadata::INVOICE_NUMBER => [
+                'invoice_number',
+                'data.invoice_number',
+                'payload.invoice_number',
+                'resource.invoice_number',
+            ],
+            Metadata::TRANSACTION_REFERENCE => [
+                'transaction_reference',
+                'gateway_transaction_id',
+                'data.transaction_reference',
+                'data.gateway_transaction_id',
+                'payload.transaction_reference',
+                'payload.gateway_transaction_id',
+                'resource.transaction_reference',
+                'resource.gateway_transaction_id',
+            ],
+        ];
+
+        foreach ($metaLookups as $metaKey => $paths) {
+            foreach ($paths as $path) {
+                $value = (string) ($this->payloadValue($payload, $path) ?? '');
+                if ($value === '') {
+                    continue;
+                }
+
+                $orders = wc_get_orders(['limit' => 1, 'meta_key' => $metaKey, 'meta_value' => $value]);
+                if (!empty($orders)) {
+                    return $orders[0];
+                }
             }
         }
 
         return null;
     }
 
+    private function payloadValue(array $payload, string $path): mixed
+    {
+        $value = $payload;
+        foreach (explode('.', $path) as $segment) {
+            if (!is_array($value) || !array_key_exists($segment, $value)) {
+                return null;
+            }
+            $value = $value[$segment];
+        }
+
+        return is_scalar($value) || $value === null ? $value : null;
+    }
+
     private function applyEvent(WC_Order $order, string $eventType, array $payload): void
     {
-        foreach ([Metadata::TRANSACTION_REFERENCE => 'transaction_reference', Metadata::PAYMENT_ID => 'payment_id', Metadata::SETTLEMENT_STATUS => 'settlement_status'] as $metaKey => $payloadKey) {
-            $value = (string) ($payload[$payloadKey] ?? '');
+        foreach ([
+            Metadata::REQUEST_NUMBER => ['request_number', 'payment_request_id', 'payment_request_number', 'reference'],
+            Metadata::INVOICE_NUMBER => ['invoice_number'],
+            Metadata::TRANSACTION_REFERENCE => ['transaction_reference', 'gateway_transaction_id'],
+            Metadata::PAYMENT_ID => ['payment_id'],
+            Metadata::SETTLEMENT_STATUS => ['settlement_status'],
+        ] as $metaKey => $payloadKeys) {
+            $value = '';
+            foreach ($payloadKeys as $payloadKey) {
+                $value = (string) ($this->payloadValue($payload, $payloadKey) ?? $this->payloadValue($payload, 'data.' . $payloadKey) ?? $this->payloadValue($payload, 'payload.' . $payloadKey) ?? $this->payloadValue($payload, 'resource.' . $payloadKey) ?? '');
+                if ($value !== '') {
+                    break;
+                }
+            }
+
             if ($value !== '') {
                 $order->update_meta_data($metaKey, sanitize_text_field($value));
             }
         }
 
+        $transactionReference = (string) ($this->payloadValue($payload, 'transaction_reference') ?? $this->payloadValue($payload, 'data.transaction_reference') ?? $this->payloadValue($payload, 'payload.transaction_reference') ?? $this->payloadValue($payload, 'resource.transaction_reference') ?? '');
+
         match (true) {
-            EventTypes::isSuccessfulPayment($eventType) => $order->payment_complete((string) ($payload['transaction_reference'] ?? '')),
+            EventTypes::isSuccessfulPayment($eventType) => $order->payment_complete($transactionReference),
             EventTypes::isFailedPayment($eventType) => $order->update_status('failed', __('Payment failed.', 'payxcommerce-gateway')),
             EventTypes::isCancelledPayment($eventType) => $order->update_status('cancelled', __('Payment cancelled or expired.', 'payxcommerce-gateway')),
             EventTypes::isRefundCompleted($eventType) => $order->add_order_note(__('Refund completed.', 'payxcommerce-gateway')),
