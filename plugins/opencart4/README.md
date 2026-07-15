@@ -17,10 +17,11 @@ OpenCart 4 extension loaders changed from OpenCart 3, so this folder keeps a sep
 - Signed success webhooks force the configured paid status with OpenCart 4 history override so paid orders do not stay pending or canceled in admin.
 - Redacted debug logging.
 - Reinstall-safe uninstall cleanup for stale `extension/payxcommerce/` files before uploading a fresh package.
+- OpenCart 4 installer-safe package layout that extracts into `extension/payxcommerce/`.
 
 ## Package Structure
 
-The installable OpenCart 4 ZIP must be named `payxcommerce.ocmod.zip`. OpenCart 4 uses the uploaded ZIP basename as the extension code, so versioned filenames such as `payxcommerce-opencart4-gateway-0.3.3.ocmod.zip` can install into the wrong extension directory.
+The installable OpenCart 4 ZIP must be named `payxcommerce.ocmod.zip`. OpenCart 4 uses the uploaded ZIP basename as the extension code and then prepends that code while extracting files. Do not upload versioned filenames such as `payxcommerce-opencart4-gateway-0.3.9.ocmod.zip`.
 
 The ZIP root must contain `install.json` directly. Do not zip the parent `extension/` folder. The correct ZIP root layout is:
 
@@ -51,6 +52,8 @@ plugins/opencart4/upload/extension/payxcommerce/
 ├── catalog/model/payment/payxcommerce.php
 ├── catalog/view/template/payment/payxcommerce.twig
 └── system/library/payxcommerce.php
+
+The generated `payxcommerce.ocmod.zip` contains `install.json`, `admin/`, `catalog/`, and `system/` at the ZIP root. The OpenCart 4 installer then extracts those paths under `extension/payxcommerce/`, resulting in `extension/payxcommerce/admin/...`, `extension/payxcommerce/catalog/...`, and `extension/payxcommerce/system/library/payxcommerce.php`.
 ```
 
 ## Webhook Routing

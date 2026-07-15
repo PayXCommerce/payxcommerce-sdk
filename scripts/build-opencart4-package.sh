@@ -12,7 +12,7 @@ if [[ ! -f "$SOURCE_DIR/install.json" ]]; then
 fi
 
 mkdir -p "$DIST_DIR"
-rm -f "$PACKAGE"
+rm -f "$PACKAGE" "$DIST_DIR"/payxcommerce-opencart4-gateway-*.ocmod.zip
 
 (
   cd "$SOURCE_DIR"
@@ -32,7 +32,12 @@ for required in admin catalog system; do
 done
 
 if zipinfo -1 "$PACKAGE" | grep -q '^extension/'; then
-  echo "Package validation failed: extension/ must not be at ZIP root for OpenCart 4 installer." >&2
+  echo "Package validation failed: extension/ must not be at ZIP root because OpenCart 4 prepends the extension code while extracting." >&2
+  exit 1
+fi
+
+if ! zipinfo -1 "$PACKAGE" | grep -qx 'system/library/payxcommerce.php'; then
+  echo "Package validation failed: system/library/payxcommerce.php is missing." >&2
   exit 1
 fi
 
