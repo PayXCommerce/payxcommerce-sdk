@@ -10,7 +10,7 @@ use Magento\Store\Model\ScopeInterface;
 class Config
 {
     public const PATH = 'payment/payxcommerce/';
-    public const MODULE_VERSION = '0.3.4';
+    public const MODULE_VERSION = '0.3.5';
 
     public function __construct(
         private readonly ScopeConfigInterface $scopeConfig,
