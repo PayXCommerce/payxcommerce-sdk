@@ -53,6 +53,10 @@ $paymentRequest = $client->paymentRequests()->create([
 ]);
 ```
 
+## Multi-Currency Transaction Fields
+
+Transaction lookup responses include explicit payment currency roles. Prefer `request_amount`/`request_currency` for customer-facing order displays, `gateway_charge_amount`/`gateway_charge_currency` for processor reconciliation, and `ledger_amount`/`ledger_currency` for merchant balance reporting. If checkout conversion was used, the `conversion` object includes the stored quote reference and applied rate.
+
 ## Webhook Events
 
 Request-level webhooks are useful when one merchant account powers multiple stores, platforms, or backend services. Pass `webhook_url` when creating a payment request to route only that request's events to a specific endpoint. Leave it out to use the merchant default webhook URL configured in the dashboard.
