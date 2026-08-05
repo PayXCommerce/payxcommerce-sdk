@@ -16,6 +16,7 @@ payload = {
     "webhook_url": "https://example.com/payxcommerce/webhook/order-1001",
     "ipn_events": default_ipn_events(),
     "metadata": {"source": "raw-python-bearer-example"},
+    "environment": "test",
     "is_test": True,
 }
 

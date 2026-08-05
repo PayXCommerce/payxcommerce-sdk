@@ -16,6 +16,7 @@ const payload = {
   webhook_url: 'https://example.com/payxcommerce/webhook/order-1001',
   ipn_events: defaultIpnEvents(),
   metadata: { source: 'raw-nodejs-bearer-example' },
+  environment: 'test',
   is_test: true
 };
 const headers = { Authorization: `Bearer ${accessToken}`, 'Idempotency-Key': `raw-nodejs-bearer-order-1002-${Math.floor(Date.now() / 1000)}` };

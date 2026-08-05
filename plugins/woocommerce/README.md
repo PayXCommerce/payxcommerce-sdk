@@ -59,3 +59,7 @@ https://your-store.example.com/?wc-api=payxcommerce
 ```
 
 The plugin also sends this URL as `webhook_url` on every payment request, so PayXCommerce can route callbacks for that order directly back to the WooCommerce store. The dashboard webhook URL remains useful as a merchant-level fallback when a request is created without its own webhook URL.
+
+## Environment Mode
+
+Select Test while validating the store and Live only for real processing. Use credentials from the same mode selected in the plugin settings. The plugin sends the selected environment on each payment request, and PayXCommerce rejects mismatched credentials/payloads to prevent sandbox orders from entering live finance.

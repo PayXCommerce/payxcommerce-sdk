@@ -26,6 +26,7 @@ $payload = [
     'webhook_url' => 'https://example.com/payxcommerce/webhook/order-1001',
     'ipn_events' => payx_default_ipn_events(),
     'metadata' => ['source' => 'raw-php-example'],
+    'environment' => 'test',
     'is_test' => true,
 ];
 

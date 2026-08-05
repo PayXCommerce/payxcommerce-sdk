@@ -16,6 +16,7 @@ response = client.payment_requests().create({
     "webhook_url": "https://example.com/payxcommerce/webhook/order-1001",
     "ipn_events": event_types.default_subscriptions(),
     "metadata": {"source": "python-sdk-example"},
+    "environment": "test",
     "is_test": True,
 })
 

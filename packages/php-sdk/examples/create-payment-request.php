@@ -33,6 +33,7 @@ try {
         'webhook_url' => 'https://example.com/payxcommerce/webhook/order-1001',
         'ipn_events' => EventTypes::defaultSubscriptions(),
         'metadata' => ['source' => 'php-sdk-example'],
+        'environment' => 'test',
         'is_test' => true,
     ]);
 

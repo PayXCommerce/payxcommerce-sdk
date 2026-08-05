@@ -34,6 +34,7 @@ try {
         'cancel_url' => 'https://example.com/payment/cancel',
         'webhook_url' => 'https://example.com/payxcommerce/webhook/order-1001',
         'ipn_events' => EventTypes::defaultSubscriptions(),
+        'environment' => 'test',
         'is_test' => true,
     ]);
 

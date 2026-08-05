@@ -59,3 +59,7 @@ The generated `payxcommerce.ocmod.zip` contains `install.json`, `admin/`, `catal
 ## Webhook Routing
 
 The extension sends the store callback endpoint as `webhook_url` when it creates each PayXCommerce payment request. That lets PayXCommerce route payment, refund, dispute, and chargeback events back to the exact OpenCart store/order flow. Configure the same webhook URL in PayXCommerce merchant settings as a fallback for manually created requests that do not include a request-level webhook URL.
+
+## Environment Mode
+
+Select Test while validating the store and Live only for real processing. Use credentials from the same mode selected in the extension settings. The extension sends the selected environment on each payment request, and PayXCommerce rejects mismatched credentials/payloads to prevent sandbox orders from entering live finance.

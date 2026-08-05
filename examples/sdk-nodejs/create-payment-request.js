@@ -26,5 +26,6 @@ client.paymentRequests().create({
   webhook_url: 'https://example.com/payxcommerce/webhook/order-1001',
   ipn_events: eventTypes.defaultSubscriptions(),
   metadata: { source: 'sdk-nodejs-example' },
+  environment: 'test',
   is_test: true
 }).then((response) => console.log(response.checkout_url)).catch(printSdkError);

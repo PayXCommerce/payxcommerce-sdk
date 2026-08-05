@@ -94,6 +94,7 @@ class ControllerExtensionPaymentPayXCommerce extends Controller
                 'store_id' => (string) $order['store_id'],
                 'merchant_reference' => $merchant_reference,
             ],
+            'environment' => $this->config->get('payment_payxcommerce_environment') === 'live' ? 'live' : 'test',
             'is_test' => $this->config->get('payment_payxcommerce_environment') !== 'live',
         ];
 

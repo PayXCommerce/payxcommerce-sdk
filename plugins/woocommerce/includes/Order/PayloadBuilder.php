@@ -36,6 +36,7 @@ final class PayloadBuilder
                 'site_url' => home_url('/'),
                 'order_id' => (string) $order->get_id(),
             ],
+            'environment' => $isTest ? 'test' : 'live',
             'is_test' => $isTest,
         ];
     }

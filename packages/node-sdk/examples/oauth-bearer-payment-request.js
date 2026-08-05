@@ -14,6 +14,7 @@ const { BearerTokenAuth, Client, ClientCredentials, Config, eventTypes } = requi
     webhook_url: 'https://example.com/payxcommerce/webhook/order-1001',
     ipn_events: eventTypes.defaultSubscriptions(),
     metadata: { source: 'node-sdk-bearer-example' },
+    environment: 'test',
     is_test: true
   });
   console.log(response.checkout_url);

@@ -34,11 +34,17 @@ response = client.payment_requests().create({
     "amount": 100,
     "currency": "USD",
     "purpose": "Order #1001",
+    "environment": "test",
+    "is_test": True,
     "webhook_url": "https://example.com/payxcommerce/webhook/order-1001",
     "ipn_events": ["payment.succeeded", "payment.failed"],
 })
 print(response["checkout_url"])
 ```
+
+## Live and Sandbox Mode
+
+Use test credentials for sandbox requests and live credentials for real payments. The API derives the mode from the API key or Developer App token; optional `environment`/`is_test` payload fields are accepted only when they match that credential mode. Sandbox payments remain isolated from live balances, settlements, commissions, accounting, risk scoring, and standard reports.
 
 ## Request-Level Webhooks
 

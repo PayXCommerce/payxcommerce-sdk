@@ -64,3 +64,7 @@ view/frontend/web/js/view/payment/         Checkout renderer
 ## Webhook Routing
 
 The module sends the Magento webhook controller URL as `webhook_url` when it creates each PayXCommerce payment request. That gives every Magento order a request-level callback destination while keeping the merchant dashboard webhook URL available as a fallback for requests created outside Magento.
+
+## Environment Mode
+
+Select Test while validating the store and Live only for real processing. Use credentials from the same mode selected in the module settings. The module sends the selected environment on each payment request, and PayXCommerce rejects mismatched credentials/payloads to prevent sandbox orders from entering live finance.
