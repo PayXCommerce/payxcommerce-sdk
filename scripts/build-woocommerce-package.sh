@@ -5,15 +5,22 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SOURCE_DIR="$ROOT/plugins/woocommerce"
 DIST_DIR="$ROOT/dist/plugins"
 PLUGIN_SLUG="payxcommerce-gateway"
-VERSION="${1:-0.3.4}"
+PLUGIN_FILE="$SOURCE_DIR/payxcommerce-gateway.php"
+DETECTED_VERSION="$(awk '/^[[:space:]]*[*][[:space:]]*Version:/ { print $3; exit }' "$PLUGIN_FILE")"
+VERSION="${1:-$DETECTED_VERSION}"
 PACKAGE_BASE="payxcommerce-woocommerce-gateway"
 PACKAGE="$DIST_DIR/${PACKAGE_BASE}-${VERSION}.zip"
 LATEST="$DIST_DIR/${PACKAGE_BASE}.zip"
 STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
 
-if [[ ! -f "$SOURCE_DIR/payxcommerce-gateway.php" ]]; then
-  echo "Missing WooCommerce plugin bootstrap at $SOURCE_DIR/payxcommerce-gateway.php" >&2
+if [[ ! -f "$PLUGIN_FILE" ]]; then
+  echo "Missing WooCommerce plugin bootstrap at $PLUGIN_FILE" >&2
+  exit 1
+fi
+
+if [[ -z "$VERSION" ]]; then
+  echo "Unable to detect WooCommerce plugin version from $PLUGIN_FILE" >&2
   exit 1
 fi
 

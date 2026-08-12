@@ -12,12 +12,12 @@ PayXCommerce_Payment
 
 Magento does not provide a standard admin ZIP upload flow like WordPress/OpenCart. The PayXCommerce Magento module is distributed in two formats for different Magento deployment workflows:
 
-- Manual app/code package: `payxcommerce-magento2-payment-app-code-0.3.5.zip`
+- Manual app/code package: `payxcommerce-magento2-payment-app-code-0.3.6.zip`
   - Contains `app/code/PayXCommerce/Payment`.
   - Unzip at the Magento root.
   - Run `bin/magento module:enable PayXCommerce_Payment`, `bin/magento setup:upgrade`, and `bin/magento cache:flush`.
 
-- Composer artifact package: `payxcommerce-magento2-payment-composer-0.3.5.zip`
+- Composer artifact package: `payxcommerce-magento2-payment-composer-0.3.6.zip`
   - Contains module files at package root with `composer.json`.
   - Use as a local/private Composer artifact and require `payxcommerce/magento2-payment`.
   - Run Magento setup and cache commands after Composer installs the package.
@@ -67,4 +67,4 @@ The module sends the Magento webhook controller URL as `webhook_url` when it cre
 
 ## Environment Mode
 
-Select Test while validating the store and Live only for real processing. Use credentials from the same mode selected in the module settings. The module sends the selected environment on each payment request, and PayXCommerce rejects mismatched credentials/payloads to prevent sandbox orders from entering live finance.
+Select Test while validating the store and Live only for real processing. Use credentials from the same mode selected in the module settings. The module sends the selected environment on each payment request, and PayXCommerce rejects mismatched credentials/payloads to prevent sandbox orders from entering live finance. The module also checks HMAC public-key prefixes before creating checkout requests and shows a clear local configuration error if a test key is used in Live mode or a live key is used in Test mode.

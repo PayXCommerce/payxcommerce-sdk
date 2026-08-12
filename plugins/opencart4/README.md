@@ -62,4 +62,4 @@ The extension sends the store callback endpoint as `webhook_url` when it creates
 
 ## Environment Mode
 
-Select Test while validating the store and Live only for real processing. Use credentials from the same mode selected in the extension settings. The extension sends the selected environment on each payment request, and PayXCommerce rejects mismatched credentials/payloads to prevent sandbox orders from entering live finance.
+Select Test while validating the store and Live only for real processing. Use credentials from the same mode selected in the extension settings. The extension sends the selected environment on each payment request, and PayXCommerce rejects mismatched credentials/payloads to prevent sandbox orders from entering live finance. The extension also checks HMAC public-key prefixes before creating checkout requests and shows a clear local configuration error if a test key is used in Live mode or a live key is used in Test mode.

@@ -206,13 +206,19 @@ final class Gateway extends WC_Payment_Gateway
             return ['result' => 'failure'];
         }
 
+        $currentEnvironment = (string) $this->get_option('environment', 'test');
         $existingCheckout = (string) $order->get_meta(Metadata::CHECKOUT_URL);
-        if ($existingCheckout && !$order->is_paid()) {
+        $existingEnvironment = (string) $order->get_meta(Metadata::ENVIRONMENT);
+        if ($existingCheckout && !$order->is_paid() && $existingEnvironment === $currentEnvironment) {
             return ['result' => 'success', 'redirect' => $existingCheckout];
         }
 
         try {
             $response = $this->createHostedCheckout($order);
+        } catch (\InvalidArgumentException $exception) {
+            $this->logger->info('Create payment request failed: ' . $exception->getMessage());
+            wc_add_notice(__('This payment method is not configured for the selected mode. Please contact store support.', 'payxcommerce-gateway'), 'error');
+            return ['result' => 'failure'];
         } catch (AuthException $exception) {
             if ($this->get_option('auth_method') === 'bearer') {
                 $this->sdk()->clearAccessTokenCache();
@@ -240,7 +246,7 @@ final class Gateway extends WC_Payment_Gateway
             return ['result' => 'failure'];
         }
 
-        $this->metadata->saveCheckout($order, $response, (string) $this->get_option('environment', 'test'));
+        $this->metadata->saveCheckout($order, $response, $currentEnvironment);
         $order->save();
         $order->add_order_note(sprintf(__('%1$s checkout created: %2$s', 'payxcommerce-gateway'), $this->brandName(), sanitize_text_field((string) ($response['request_number'] ?? ''))));
 

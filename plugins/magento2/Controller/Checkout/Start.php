@@ -50,12 +50,20 @@ class Start implements HttpGetActionInterface
             $payment = $order->getPayment();
             $payment->setAdditionalInformation('payxcommerce_request_number', $response['request_number'] ?? '');
             $payment->setAdditionalInformation('payxcommerce_invoice_number', $response['invoice_number'] ?? '');
+            $payment->setAdditionalInformation('payxcommerce_environment', $this->config->environment($storeId));
             $checkoutUrl = $this->resolveCheckoutUrl($response);
             $payment->setAdditionalInformation('payxcommerce_checkout_url', $checkoutUrl);
             $order->addCommentToStatusHistory($this->config->brandName($storeId) . ' checkout created: ' . ($response['request_number'] ?? ''));
             $this->orderRepository->save($order);
 
             return $result->setUrl($checkoutUrl);
+        } catch (\RuntimeException $exception) {
+            $this->logger->error('Checkout creation failed: ' . $exception->getMessage(), ['order_id' => (string) $order->getEntityId()]);
+            $order->addCommentToStatusHistory($this->config->brandName($storeId) . ' checkout creation failed: configuration requires review.');
+            $this->orderRepository->save($order);
+            $this->messageManager->addErrorMessage(__('This payment method is not configured for the selected mode. Please contact store support.'));
+
+            return $result->setPath('checkout');
         } catch (\Throwable $exception) {
             $this->logger->error('Checkout creation failed: ' . $exception->getMessage(), ['order_id' => (string) $order->getEntityId()]);
             $order->addCommentToStatusHistory($this->config->brandName($storeId) . ' checkout creation failed.');

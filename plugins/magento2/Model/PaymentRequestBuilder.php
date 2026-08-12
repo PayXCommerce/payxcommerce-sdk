@@ -42,8 +42,8 @@ class PaymentRequestBuilder
                 'increment_id' => (string) $order->getIncrementId(),
                 'store_id' => (string) $storeId,
             ],
-            'environment' => $this->config->value('environment', $storeId) === 'live' ? 'live' : 'test',
-            'is_test' => $this->config->value('environment', $storeId) !== 'live',
+            'environment' => $this->config->environment($storeId),
+            'is_test' => $this->config->environment($storeId) !== 'live',
         ];
     }
 }

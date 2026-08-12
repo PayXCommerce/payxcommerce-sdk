@@ -21,6 +21,7 @@ use PayXCommerce\Exceptions\ValidationException;
 use PayXCommerce\Config;
 use PayXCommerce\Http\CurlHttpClient;
 use PayXCommerce\Util\Redactor;
+use PayXCommerce\Util\Environment;
 use PayXCommerce\Webhooks\EventTypes;
 use PayXCommerce\Webhooks\Verifier;
 
@@ -63,6 +64,16 @@ assertTrueValue(EventTypes::isSuccessfulPayment('payment.success'), 'Legacy succ
 assertSameValue(['payment.succeeded', 'payment.failed', 'payment.cancelled', 'payment.expired', 'refund.succeeded', 'payment.refunded', 'chargeback.created', 'dispute.created'], EventTypes::defaultSubscriptions(), 'Default webhook subscriptions should use current event names.');
 assertSameValue('secret=[redacted]', Redactor::text('secret=abc123'), 'Redactor should hide secrets in log text.');
 assertSameValue('[redacted]', Redactor::context(['client_secret' => 'abc123'])['client_secret'], 'Redactor should hide secret context values.');
+assertSameValue('test', Environment::normalize('sandbox'), 'Unknown environment labels should normalize to test.');
+assertSameValue('live', Environment::credentialEnvironment('pk_live_abc'), 'Live HMAC public key prefix should be detected.');
+assertSameValue('test', Environment::credentialEnvironment('pk_test_abc'), 'Test HMAC public key prefix should be detected.');
+
+try {
+    Environment::assertHmacCredentialMatches('pk_test_abc', 'live');
+    throw new RuntimeException('Mismatched HMAC credential mode should fail before API request.');
+} catch (InvalidArgumentException $exception) {
+    assertTrueValue(str_contains($exception->getMessage(), 'Live mode requires live API keys'), 'Mismatched mode error should explain the expected credential type.');
+}
 
 try {
     $verifier->verify($rawBody, [

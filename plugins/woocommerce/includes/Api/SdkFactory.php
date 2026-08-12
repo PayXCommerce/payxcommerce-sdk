@@ -9,6 +9,7 @@ use PayXCommerce\Auth\HmacAuth;
 use PayXCommerce\Client;
 use PayXCommerce\Config;
 use PayXCommerce\OAuth\ClientCredentials;
+use PayXCommerce\Util\Environment;
 use PayXCommerce\WooCommerce\Admin\Settings;
 
 final class SdkFactory
@@ -25,6 +26,8 @@ final class SdkFactory
         if ($authMethod === 'bearer') {
             return new Client(new Config(baseUrl: $baseUrl, auth: new BearerTokenAuth($this->accessToken())));
         }
+
+        Environment::assertHmacCredentialMatches($this->option('public_key'), $this->option('environment', 'test'));
 
         return new Client(new Config(baseUrl: $baseUrl, auth: new HmacAuth(
             publicKey: $this->option('public_key'),
@@ -68,6 +71,7 @@ final class SdkFactory
     {
         return 'payxcommerce_bearer_token_' . md5(implode('|', [
             $this->option('base_url', Settings::DEFAULT_BASE_URL),
+            $this->option('environment', 'test'),
             $this->option('client_id'),
             Settings::TOKEN_SCOPE,
         ]));

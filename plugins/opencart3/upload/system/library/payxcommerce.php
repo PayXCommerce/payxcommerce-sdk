@@ -14,12 +14,15 @@ class PayXCommerce
 
     public function validateCredentials(): bool
     {
+        $this->assertEnvironmentConfiguration([]);
         $this->request('GET', '/balance');
         return true;
     }
 
     public function createPaymentRequest(array $payload, string $idempotencyKey): array
     {
+        $this->assertEnvironmentConfiguration($payload);
+
         return $this->request('POST', '/payment-requests', $payload, $idempotencyKey);
     }
 
@@ -167,5 +170,30 @@ class PayXCommerce
     private function setting(string $key, string $default = ''): string
     {
         return (string) ($this->settings['payment_payxcommerce_' . $key] ?? $this->settings[$key] ?? $default);
+    }
+
+    private function assertEnvironmentConfiguration(array $payload): void
+    {
+        $environment = strtolower((string) ($payload['environment'] ?? $this->setting('environment', 'test'))) === 'live' ? 'live' : 'test';
+
+        if ($this->setting('auth_method', 'hmac') === 'bearer') {
+            return;
+        }
+
+        $publicKey = strtolower(trim($this->setting('public_key')));
+        $keyEnvironment = null;
+        if (substr($publicKey, 0, 8) === 'pk_test_') {
+            $keyEnvironment = 'test';
+        } elseif (substr($publicKey, 0, 8) === 'pk_live_') {
+            $keyEnvironment = 'live';
+        }
+
+        if ($keyEnvironment !== null && $keyEnvironment !== $environment) {
+            throw new RuntimeException(sprintf(
+                'PayXCommerce %s mode requires %s API keys. Update the extension environment or use matching credentials.',
+                $environment === 'live' ? 'Live' : 'Test',
+                $environment === 'live' ? 'live' : 'test'
+            ));
+        }
     }
 }

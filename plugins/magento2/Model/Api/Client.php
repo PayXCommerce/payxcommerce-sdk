@@ -18,6 +18,8 @@ class Client
 
     public function createPaymentRequest(array $payload, string $idempotencyKey, ?int $storeId = null): array
     {
+        $this->config->assertEnvironmentCredentials($storeId);
+
         return $this->request('POST', '/payment-requests', $payload, ['Idempotency-Key' => $idempotencyKey], $storeId);
     }
 
@@ -97,7 +99,7 @@ class Client
 
     private function bearerToken(?int $storeId = null): string
     {
-        $cacheKey = (string) ($storeId ?? 0);
+        $cacheKey = (string) ($storeId ?? 0) . ':' . $this->config->environment($storeId);
         if (!empty($this->bearerTokens[$cacheKey])) {
             return $this->bearerTokens[$cacheKey];
         }
