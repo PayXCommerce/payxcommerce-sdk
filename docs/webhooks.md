@@ -33,17 +33,30 @@ Webhook handlers must:
 
 Common event types:
 
+- `payment.success`
 - `payment.succeeded`
 - `payment.failed`
 - `payment.cancelled`
 - `payment.expired`
-- `refund.succeeded`
+- `refund.created`
+- `refund.requested`
+- `refund.approved`
+- `refund.success`
+- `refund.failed`
+- `refund.rejected`
 - `payment.refunded`
 - `chargeback.created`
 - `dispute.created`
+- `customer.kyc.session_created`
+- `customer.kyc.approved`
+- `customer.kyc.declined`
+- `customer.kyc.review`
+- `customer.kyc.info_requested`
+- `customer.kyc.info_submitted`
 
 Legacy aliases may still be received by older integrations:
 
-- `payment.success`
 - `payment.canceled`
-- `refund.success`
+- `refund.succeeded`
+
+Customer KYC webhook payloads are merchant-safe. They include PayXCommerce references, customer-safe status, provider key, gateway name, environment, and request references. They do not include raw identity-provider payloads, documents, or internal database IDs.
