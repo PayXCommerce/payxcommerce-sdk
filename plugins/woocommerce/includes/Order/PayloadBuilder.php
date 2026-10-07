@@ -12,7 +12,7 @@ final class PayloadBuilder
     public function build(WC_Order $order, string $webhookUrl, bool $isTest): array
     {
         return [
-            'amount' => (float) $order->get_total(),
+            'amount' => (string) $order->get_total(),
             'currency' => $order->get_currency(),
             'purpose' => 'WooCommerce Order #' . $order->get_order_number(),
             'customer' => [

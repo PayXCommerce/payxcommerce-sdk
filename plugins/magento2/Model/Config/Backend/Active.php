@@ -16,6 +16,14 @@ class Active extends Value
 
         $authMethod = $this->fieldValue('auth_method', 'hmac');
         $webhookSecret = $this->fieldValue('webhook_secret');
+        $baseUrl = $this->fieldValue('base_url');
+        $parts = parse_url($baseUrl);
+        $scheme = strtolower((string) ($parts['scheme'] ?? ''));
+        $host = strtolower((string) ($parts['host'] ?? ''));
+        $local = in_array($host, ['localhost', '127.0.0.1', '::1'], true) || str_ends_with($host, '.test');
+        if (!$host || ($scheme !== 'https' && !($scheme === 'http' && $local))) {
+            throw new LocalizedException(__('API Base URL must use HTTPS except for localhost or .test development hosts.'));
+        }
 
         if ($webhookSecret === '') {
             throw new LocalizedException(__('Webhook Secret is required before enabling PayXCommerce.'));

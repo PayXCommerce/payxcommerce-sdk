@@ -17,7 +17,7 @@ class PaymentRequestBuilder
         $billing = $order->getBillingAddress();
 
         return [
-            'amount' => (float) $order->getGrandTotal(),
+            'amount' => (string) $order->getGrandTotal(),
             'currency' => $order->getOrderCurrencyCode(),
             'purpose' => 'Magento Order #' . $order->getIncrementId(),
             'customer' => [
@@ -34,7 +34,7 @@ class PaymentRequestBuilder
             'failed_url' => $order->getStore()->getBaseUrl() . 'checkout/cart',
             'cancel_url' => $order->getStore()->getBaseUrl() . 'checkout/cart',
             'webhook_url' => $order->getStore()->getBaseUrl() . 'payxcommerce/webhook/index',
-            'ipn_events' => ['payment.succeeded', 'payment.failed', 'payment.cancelled', 'payment.expired', 'refund.succeeded', 'payment.refunded', 'chargeback.created', 'dispute.created'],
+            'ipn_events' => ['payment.success', 'payment.failed', 'payment.cancelled', 'payment.expired', 'refund.success', 'payment.refunded', 'chargeback.created', 'dispute.created'],
             'metadata' => [
                 'platform' => 'magento2',
                 'module_version' => Config::MODULE_VERSION,

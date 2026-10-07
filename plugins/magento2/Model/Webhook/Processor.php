@@ -9,7 +9,6 @@ use Magento\Sales\Api\Data\OrderInterface;
 use Magento\Sales\Api\OrderRepositoryInterface;
 use Magento\Sales\Model\Order;
 use Magento\Sales\Model\Order\Payment\Transaction as PaymentTransaction;
-use Magento\Sales\Model\ResourceModel\Order\CollectionFactory as OrderCollectionFactory;
 use Magento\Sales\Model\Service\InvoiceService;
 use PayXCommerce\Payment\Model\Config;
 
@@ -18,16 +17,15 @@ class Processor
     public function __construct(
         private readonly OrderRepositoryInterface $orderRepository,
         private readonly Config $config,
-        private readonly OrderCollectionFactory $orderCollectionFactory,
         private readonly ResourceConnection $resourceConnection,
         private readonly InvoiceService $invoiceService,
         private readonly DbTransaction $dbTransaction
     ) {
     }
 
-    public function process(array $payload, string $eventId): string
+    public function process(array $payload, string $eventId, int $storeId): string
     {
-        $order = $this->findOrder($payload);
+        $order = $this->findBoundOrder($payload, $storeId);
         if (!$order || !$order->getEntityId()) {
             return 'Accepted; order not found';
         }
@@ -55,67 +53,19 @@ class Processor
         }
 
         $eventType = (string) ($payload['event_type'] ?? '');
+        if (in_array($eventType, ['payment.success', 'payment.succeeded'], true)) {
+            $this->assertSuccessfulPaymentMatchesOrder($order, $payload);
+        }
         $this->applyEvent($order, $eventType, $payload);
         $this->orderRepository->save($order);
 
         return 'OK';
     }
 
-    private function findOrder(array $payload): ?OrderInterface
+    private function findBoundOrder(array $payload, int $storeId): ?OrderInterface
     {
         foreach ([
-            'metadata.order_id',
-            'metadata.magento_order_id',
-            'data.metadata.order_id',
-            'data.metadata.magento_order_id',
-            'payload.metadata.order_id',
-            'payload.metadata.magento_order_id',
-            'resource.metadata.order_id',
-            'resource.metadata.magento_order_id',
-            'merchant_order_id',
-            'data.merchant_order_id',
-            'payload.merchant_order_id',
-            'resource.merchant_order_id',
-        ] as $path) {
-            $orderId = $this->payloadValue($payload, $path);
-            if ($orderId === null || (string) $orderId === '' || (int) $orderId <= 0) {
-                continue;
-            }
-
-            try {
-                return $this->orderRepository->get((int) $orderId);
-            } catch (\Throwable) {
-            }
-        }
-
-        foreach ([
-            'metadata.increment_id',
-            'metadata.order_increment_id',
-            'data.metadata.increment_id',
-            'payload.metadata.increment_id',
-            'resource.metadata.increment_id',
-            'merchant_reference',
-            'data.merchant_reference',
-            'payload.merchant_reference',
-            'resource.merchant_reference',
-        ] as $path) {
-            $value = (string) ($this->payloadValue($payload, $path) ?? '');
-            $incrementId = preg_replace('/^M2-/i', '', $value) ?: '';
-            if ($incrementId === '') {
-                continue;
-            }
-
-            $order = $this->orderCollectionFactory->create()
-                ->addFieldToFilter('increment_id', $incrementId)
-                ->setPageSize(1)
-                ->getFirstItem();
-            if ($order && $order->getEntityId()) {
-                return $order;
-            }
-        }
-
-        foreach ([
-            'request_number' => ['request_number', 'payment_request_id', 'payment_request_number', 'reference'],
+            'request_number' => ['request_number', 'payment_request_reference', 'payment_request_id', 'payment_request_number', 'reference'],
             'invoice_number' => ['invoice_number'],
             'transaction_reference' => ['transaction_reference', 'gateway_transaction_id'],
         ] as $infoKey => $paths) {
@@ -125,11 +75,16 @@ class Processor
             }
 
             $orderId = $this->findOrderIdByPaymentInfo('payxcommerce_' . $infoKey, $value);
-            if ($orderId > 0) {
-                try {
-                    return $this->orderRepository->get($orderId);
-                } catch (\Throwable) {
+            if ($orderId <= 0) {
+                continue;
+            }
+
+            try {
+                $order = $this->orderRepository->get($orderId);
+                if ((int) $order->getStoreId() === $storeId) {
+                    return $order;
                 }
+            } catch (\Throwable) {
             }
         }
 
@@ -217,6 +172,44 @@ class Processor
         }
 
         $order->addCommentToStatusHistory($this->config->brandName($storeId) . ' event received: ' . $eventType);
+    }
+
+    private function assertSuccessfulPaymentMatchesOrder(OrderInterface $order, array $payload): void
+    {
+        $amount = $this->firstPayloadValue($payload, ['amount', 'request_amount']);
+        if ($amount !== '' && !$this->decimalEquals((string) $order->getGrandTotal(), $amount)) {
+            throw new \RuntimeException('Webhook payment amount does not match the bound Magento order.');
+        }
+
+        $currency = strtoupper($this->firstPayloadValue($payload, ['currency', 'request_currency']));
+        if ($currency !== '' && $currency !== strtoupper((string) $order->getOrderCurrencyCode())) {
+            throw new \RuntimeException('Webhook payment currency does not match the bound Magento order.');
+        }
+
+        $environment = strtolower($this->firstPayloadValue($payload, ['environment']));
+        $expectedEnvironment = strtolower((string) $order->getPayment()->getAdditionalInformation('payxcommerce_environment'));
+        if ($environment !== '' && $expectedEnvironment !== '' && $environment !== $expectedEnvironment) {
+            throw new \RuntimeException('Webhook environment does not match the bound Magento order.');
+        }
+    }
+
+    private function decimalEquals(string $expected, string $actual): bool
+    {
+        $normalize = static function (string $value): ?string {
+            $value = trim($value);
+            if (!preg_match('/^([+-]?)(\d+)(?:\.(\d+))?$/', $value, $matches)) {
+                return null;
+            }
+            $integer = ltrim($matches[2], '0');
+            $fraction = rtrim($matches[3] ?? '', '0');
+            $normalized = ($integer === '' ? '0' : $integer) . ($fraction === '' ? '' : '.' . $fraction);
+            return $matches[1] === '-' && $normalized !== '0' ? '-' . $normalized : $normalized;
+        };
+
+        $expectedNormalized = $normalize($expected);
+        $actualNormalized = $normalize($actual);
+
+        return $expectedNormalized !== null && $expectedNormalized === $actualNormalized;
     }
 
     private function registerSuccessfulPayment(OrderInterface $order, array $payload): void

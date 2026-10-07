@@ -45,6 +45,13 @@ signature = Verifier.signature(event_id, raw_body, "webhook_secret")
 decoded = Verifier("webhook_secret").verify(raw_body, {"X-PXC-Event-ID": event_id, "X-PXC-Timestamp": str(int(time.time())), "X-PXC-Signature": signature})
 assert_same(event_types.PAYMENT_SUCCEEDED, decoded["event_type"], "Webhook verifier should return decoded payload.")
 assert_true(event_types.is_successful_payment("payment.success"), "Legacy success event should be recognized.")
+unicode_body = f'{{\n  "event_id":"{event_id}","customer":"José / 東京","amount":1.2300\n}}'.encode("utf-8")
+unicode_expected = hmac.new(b"webhook_secret", event_id.encode() + b"." + unicode_body, hashlib.sha256).hexdigest()
+assert_same(unicode_expected, Verifier.signature(event_id, unicode_body, "webhook_secret"), "Webhook signature must preserve exact raw JSON bytes.")
+escaped_body = b'{"event_id":"PXEVT-TEST","path":"https:\\/\\/example.test\\/a","message":"line\\nvalue","amount":1e2}'
+escaped_signature = Verifier.signature(event_id, escaped_body, "webhook_secret")
+escaped_decoded = Verifier("webhook_secret").verify(escaped_body, {"X-PXC-Event-ID": event_id, "X-PXC-Timestamp": str(int(time.time())), "X-PXC-Signature": escaped_signature})
+assert_same(100.0, escaped_decoded["amount"], "Escaped JSON and exponent-form numbers should verify from their exact raw representation.")
 assert_same("secret=[redacted]", redactor.text("secret=abc123"), "Redactor should hide secrets in text.")
 assert_same("[redacted]", redactor.context({"client_secret": "abc123"})["client_secret"], "Redactor should hide secret context values.")
 
@@ -53,6 +60,20 @@ try:
     raise RuntimeError("Invalid webhook signature should fail.")
 except WebhookVerificationException:
     assert_true(True, "Invalid webhook signature failed as expected.")
+
+for invalid_body, invalid_timestamp, invalid_message in [
+    (b"{invalid", str(int(time.time())), "Invalid JSON should fail."),
+    (raw_body, str(int(time.time()) - 1000), "Stale timestamp should fail."),
+]:
+    try:
+        Verifier("webhook_secret").verify(invalid_body, {
+            "X-PXC-Event-ID": event_id,
+            "X-PXC-Timestamp": invalid_timestamp,
+            "X-PXC-Signature": Verifier.signature(event_id, invalid_body, "webhook_secret"),
+        })
+        raise RuntimeError(invalid_message)
+    except WebhookVerificationException:
+        assert_true(True, invalid_message)
 
 try:
     HttpClient()._throw_for_status(422, {

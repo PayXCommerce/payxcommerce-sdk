@@ -15,6 +15,9 @@ if command -v node >/dev/null 2>&1; then
   find "$ROOT_DIR/packages/node-sdk" "$ROOT_DIR/examples/raw-nodejs" "$ROOT_DIR/examples/sdk-nodejs" -name '*.js' -print -exec node --check {} \;
 fi
 find "$ROOT_DIR/plugins" -name '*.php' -print -exec php -l {} \;
+php "$ROOT_DIR/plugins/woocommerce/tests/webhook-handler-smoke.php"
+php "$ROOT_DIR/tools/test/opencart-library-contracts.php"
+php "$ROOT_DIR/tools/test/plugin-contracts.php"
 if command -v xmllint >/dev/null 2>&1; then
   find "$ROOT_DIR/plugins" -name '*.xml' -print -exec xmllint --noout {} \;
 fi

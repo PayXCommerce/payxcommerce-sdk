@@ -47,10 +47,7 @@ final class Verifier
 
     public static function signature(string $eventId, string $rawBody, string $webhookSecret): string
     {
-        $payload = json_decode($rawBody, true);
-        $canonicalBody = is_array($payload) ? json_encode($payload, JSON_UNESCAPED_SLASHES) : $rawBody;
-
-        return hash_hmac('sha256', $eventId . '.' . $canonicalBody, $webhookSecret);
+        return hash_hmac('sha256', $eventId . '.' . $rawBody, $webhookSecret);
     }
 
     private function header(array $headers, string $name): ?string
@@ -69,4 +66,3 @@ final class Verifier
         return null;
     }
 }
-

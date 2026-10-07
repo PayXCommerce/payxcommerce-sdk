@@ -67,7 +67,7 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
         $merchant_reference = 'OC4-' . $order_id;
         $return_args = 'order_id=' . $order_id . '&merchant_reference=' . urlencode($merchant_reference);
         $payload = [
-            'amount' => (float) $order['total'],
+            'amount' => (string) $order['total'],
             'currency' => $order['currency_code'],
             'purpose' => 'OpenCart Order #' . $order_id,
             'customer' => [
@@ -84,7 +84,7 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
             'failed_url' => $this->url->link('checkout/failure'),
             'cancel_url' => $this->url->link('checkout/checkout'),
             'webhook_url' => $this->url->link('extension/payxcommerce/payment/payxcommerce.webhook'),
-            'ipn_events' => ['payment.succeeded', 'payment.failed', 'payment.cancelled', 'payment.expired', 'refund.succeeded', 'payment.refunded', 'chargeback.created', 'dispute.created'],
+            'ipn_events' => ['payment.success', 'payment.failed', 'payment.cancelled', 'payment.expired', 'refund.success', 'payment.refunded', 'chargeback.created', 'dispute.created'],
             'metadata' => [
                 'platform' => 'opencart',
                 'platform_version' => '4',
@@ -103,7 +103,7 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
             if (!$client->isConfigured()) {
                 throw new \RuntimeException('Payment method is not fully configured.');
             }
-            $response = $client->createPaymentRequest($payload, 'opencart-4-order-' . $order_id . '-' . time());
+            $response = $client->createPaymentRequest($payload, 'opencart-4-order-' . $order_id);
             $checkout_url = (string) ($response['checkout_url'] ?? '');
         } catch (\Throwable $exception) {
             $this->log->write('PayXCommerce create request failed: ' . $this->redact($exception->getMessage()));
@@ -122,16 +122,8 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
 
     public function success(): void
     {
-        $this->load->model('checkout/order');
-        $this->load->model('extension/payxcommerce/payment/payxcommerce');
-
-        $order_id = $this->resolvedReturnOrderId();
-        $merchant_reference = (string) ($this->request->get['merchant_reference'] ?? '');
-        if ($order_id > 0 && $this->model_checkout_order->getOrder($order_id) && $this->model_extension_payxcommerce_payment_payxcommerce->returnReferenceMatches($order_id, $merchant_reference)) {
-            $this->model_extension_payxcommerce_payment_payxcommerce->markReturnSuccess($order_id);
-            $this->addOrderStatus($order_id, $this->statusSetting('success_status_id'), $this->brandName() . ' return: payment successful.');
-        }
-
+        // A browser return is not payment proof. The signed webhook is the
+        // only path which may move the local order to a paid status.
         $this->response->redirect($this->url->link('checkout/success'));
     }
 
@@ -169,17 +161,15 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
             $event_id = 'payload-' . hash('sha256', $raw_body);
         }
 
-        if ($event_id !== '' && $this->model_extension_payxcommerce_payment_payxcommerce->webhookEventExists($event_id)) {
-            $this->response->setOutput('Duplicate ignored');
-            return;
-        }
-
         $event_type = $this->eventTypeFromPayload($payload);
         if ($event_type !== '') {
             $payload['event_type'] = $event_type;
         }
         $order_id = $this->model_extension_payxcommerce_payment_payxcommerce->findOrderId($payload);
-        $this->model_extension_payxcommerce_payment_payxcommerce->recordWebhookEvent($event_id, $order_id, $event_type, $raw_body);
+        if (!$this->model_extension_payxcommerce_payment_payxcommerce->claimWebhookEvent($event_id, $order_id, $event_type, $raw_body)) {
+            $this->response->setOutput('Duplicate ignored');
+            return;
+        }
 
         if ($order_id <= 0) {
             $this->model_extension_payxcommerce_payment_payxcommerce->completeWebhookEvent($event_id, 'accepted_order_missing');
@@ -188,6 +178,15 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
         }
 
         try {
+            $order = $this->model_checkout_order->getOrder($order_id);
+            if (!$order) {
+                $this->model_extension_payxcommerce_payment_payxcommerce->completeWebhookEvent($event_id, 'accepted_order_missing');
+                $this->response->setOutput('Accepted');
+                return;
+            }
+            if (in_array($event_type, ['payment.success', 'payment.succeeded'], true)) {
+                $this->assertSuccessfulPaymentMatchesOrder($order, $payload);
+            }
             $this->model_extension_payxcommerce_payment_payxcommerce->updatePayxOrder($order_id, $payload);
             $status_id = $this->statusForEvent($event_type);
             if ($status_id) {
@@ -270,6 +269,44 @@ class Payxcommerce extends \Opencart\System\Engine\Controller
         }
 
         return $value;
+    }
+
+    private function assertSuccessfulPaymentMatchesOrder(array $order, array $payload): void
+    {
+        $amount = (string) ($this->payloadValue($payload, 'amount') ?? $this->payloadValue($payload, 'request_amount') ?? '');
+        if ($amount !== '' && !$this->decimalEquals((string) $order['total'], $amount)) {
+            throw new \RuntimeException('Webhook payment amount does not match the bound OpenCart order.');
+        }
+
+        $currency = strtoupper((string) ($this->payloadValue($payload, 'currency') ?? $this->payloadValue($payload, 'request_currency') ?? ''));
+        if ($currency !== '' && $currency !== strtoupper((string) $order['currency_code'])) {
+            throw new \RuntimeException('Webhook payment currency does not match the bound OpenCart order.');
+        }
+
+        $environment = strtolower((string) ($this->payloadValue($payload, 'environment') ?? ''));
+        $expected_environment = $this->config->get('payment_payxcommerce_environment') === 'live' ? 'live' : 'test';
+        if ($environment !== '' && $environment !== $expected_environment) {
+            throw new \RuntimeException('Webhook environment does not match the configured OpenCart payment mode.');
+        }
+    }
+
+    private function decimalEquals(string $expected, string $actual): bool
+    {
+        $normalize = static function (string $value): ?string {
+            $value = trim($value);
+            if (!preg_match('/^([+-]?)(\d+)(?:\.(\d+))?$/', $value, $matches)) {
+                return null;
+            }
+            $integer = ltrim($matches[2], '0');
+            $fraction = rtrim($matches[3] ?? '', '0');
+            $normalized = ($integer === '' ? '0' : $integer) . ($fraction === '' ? '' : '.' . $fraction);
+            return $matches[1] === '-' && $normalized !== '0' ? '-' . $normalized : $normalized;
+        };
+
+        $expected_normalized = $normalize($expected);
+        $actual_normalized = $normalize($actual);
+
+        return $expected_normalized !== null && $expected_normalized === $actual_normalized;
     }
 
     private function statusSetting(string $key): int

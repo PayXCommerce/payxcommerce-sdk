@@ -16,8 +16,9 @@ class Verifier {
     if (!eventId || !timestamp || !receivedSignature) throw new WebhookVerificationError('Missing PayXCommerce webhook signature headers.');
     if (!/^\d+$/.test(timestamp)) throw new WebhookVerificationError('Invalid PayXCommerce webhook timestamp.');
     if (Math.abs(Math.floor(Date.now() / 1000) - Number(timestamp)) > this.toleranceSeconds) throw new WebhookVerificationError('PayXCommerce webhook timestamp is outside the allowed tolerance.');
+    const bodyText = Buffer.isBuffer(rawBody) ? rawBody.toString('utf8') : String(rawBody);
     let payload;
-    try { payload = JSON.parse(rawBody); } catch (error) { throw new WebhookVerificationError('PayXCommerce webhook body is not valid JSON.'); }
+    try { payload = JSON.parse(bodyText); } catch (error) { throw new WebhookVerificationError('PayXCommerce webhook body is not valid JSON.'); }
     const expected = Verifier.signature(eventId, rawBody, this.webhookSecret);
     if (expected.length !== receivedSignature.length || !crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(receivedSignature))) {
       throw new WebhookVerificationError('Invalid PayXCommerce webhook signature.');
@@ -26,9 +27,11 @@ class Verifier {
   }
 
   static signature(eventId, rawBody, webhookSecret) {
-    let canonicalBody = rawBody;
-    try { canonicalBody = JSON.stringify(JSON.parse(rawBody)); } catch (error) {}
-    return crypto.createHmac('sha256', webhookSecret).update(`${eventId}.${canonicalBody}`).digest('hex');
+    const body = Buffer.isBuffer(rawBody) ? rawBody : Buffer.from(String(rawBody), 'utf8');
+    return crypto.createHmac('sha256', webhookSecret)
+      .update(`${eventId}.`, 'utf8')
+      .update(body)
+      .digest('hex');
   }
 
   _header(headers, name) {

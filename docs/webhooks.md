@@ -14,7 +14,7 @@ X-PXC-Schema-Version
 Verification message:
 
 ```text
-event_id + "." + canonical_json_body
+event_id + "." + exact_raw_http_body_bytes
 ```
 
 Signature:
@@ -28,13 +28,15 @@ Webhook handlers must:
 - Read the raw request body.
 - Verify signature before updating local orders.
 - Reject old timestamps.
-- Store event IDs and ignore duplicates.
+- Store event IDs and ignore successfully processed/concurrently processing duplicates.
+- Permit the same signed event ID/body to retry after a failed processing attempt.
+- Resolve the local order from the stored PayXCommerce request/transaction reference, not payload order metadata alone.
 - Return HTTP 200 only after safe processing.
 
 Common event types:
 
 - `payment.success`
-- `payment.succeeded`
+- `payment.succeeded` (legacy alias)
 - `payment.failed`
 - `payment.cancelled`
 - `payment.expired`
@@ -57,6 +59,9 @@ Common event types:
 Legacy aliases may still be received by older integrations:
 
 - `payment.canceled`
+- `payment.succeeded`
 - `refund.succeeded`
+
+Request-specific `ipn_events` accepts only the documented event catalog. Omission defaults to `payment.success` and `payment.failed`; an explicit empty list disables the request-specific IPN channel without disabling the merchant-level webhook.
 
 Customer KYC webhook payloads are merchant-safe. They include PayXCommerce references, customer-safe status, provider key, gateway name, environment, and request references. They do not include raw identity-provider payloads, documents, or internal database IDs.

@@ -29,8 +29,7 @@ if (!is_array($payload)) {
     exit;
 }
 
-$canonicalBody = json_encode($payload, JSON_UNESCAPED_SLASHES);
-$expected = hash_hmac('sha256', $eventId . '.' . $canonicalBody, $webhookSecret);
+$expected = hash_hmac('sha256', $eventId . '.' . $rawBody, $webhookSecret);
 
 if (!hash_equals($expected, $signature)) {
     http_response_code(401);

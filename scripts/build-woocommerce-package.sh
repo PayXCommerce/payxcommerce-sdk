@@ -12,6 +12,7 @@ PACKAGE_BASE="payxcommerce-woocommerce-gateway"
 PACKAGE="$DIST_DIR/${PACKAGE_BASE}-${VERSION}.zip"
 LATEST="$DIST_DIR/${PACKAGE_BASE}.zip"
 STAGE="$(mktemp -d)"
+SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-1767225600}"
 trap 'rm -rf "$STAGE"' EXIT
 
 if [[ ! -f "$PLUGIN_FILE" ]]; then
@@ -30,11 +31,12 @@ rsync -a \
   --exclude '.git/' \
   --exclude '.DS_Store' \
   "$SOURCE_DIR/" "$STAGE/$PLUGIN_SLUG/"
+find "$STAGE/$PLUGIN_SLUG" -exec touch -h -d "@${SOURCE_DATE_EPOCH}" {} +
 
 rm -f "$PACKAGE" "$LATEST"
 (
   cd "$STAGE"
-  zip -qr "$PACKAGE" "$PLUGIN_SLUG"
+  zip -Xqr "$PACKAGE" "$PLUGIN_SLUG"
 )
 cp "$PACKAGE" "$LATEST"
 
@@ -58,3 +60,4 @@ done
 
 echo "$PACKAGE"
 echo "$LATEST"
+sha256sum "$PACKAGE" "$LATEST"

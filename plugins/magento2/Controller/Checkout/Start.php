@@ -46,7 +46,7 @@ class Start implements HttpGetActionInterface
             }
 
             $payload = $this->paymentRequestBuilder->build($order);
-            $response = $this->client->createPaymentRequest($payload, 'magento2-order-' . $order->getEntityId() . '-' . time(), $storeId);
+            $response = $this->client->createPaymentRequest($payload, 'magento2-order-' . $order->getEntityId() . '-' . $this->config->environment($storeId), $storeId);
             $payment = $order->getPayment();
             $payment->setAdditionalInformation('payxcommerce_request_number', $response['request_number'] ?? '');
             $payment->setAdditionalInformation('payxcommerce_invoice_number', $response['invoice_number'] ?? '');

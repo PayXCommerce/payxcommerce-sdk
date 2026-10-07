@@ -14,7 +14,7 @@ class Verifier:
         self.webhook_secret = webhook_secret
         self.tolerance_seconds = tolerance_seconds
 
-    def verify(self, raw_body: str, headers: dict[str, str]) -> dict[str, Any]:
+    def verify(self, raw_body: str | bytes, headers: dict[str, str]) -> dict[str, Any]:
         event_id = self._header(headers, "X-PXC-Event-ID")
         timestamp = self._header(headers, "X-PXC-Timestamp")
         signature = self._header(headers, "X-PXC-Signature")
@@ -25,7 +25,7 @@ class Verifier:
         if abs(int(time.time()) - int(timestamp)) > self.tolerance_seconds:
             raise WebhookVerificationException("PayXCommerce webhook timestamp is outside the allowed tolerance.")
         try:
-            payload = json.loads(raw_body)
+            payload = json.loads(raw_body.decode("utf-8") if isinstance(raw_body, bytes) else raw_body)
         except json.JSONDecodeError as exc:
             raise WebhookVerificationException("PayXCommerce webhook body is not valid JSON.") from exc
         expected = self.signature(event_id, raw_body, self.webhook_secret)
@@ -34,13 +34,9 @@ class Verifier:
         return payload
 
     @staticmethod
-    def signature(event_id: str, raw_body: str, webhook_secret: str) -> str:
-        try:
-            payload = json.loads(raw_body)
-            canonical_body = json.dumps(payload, separators=(",", ":"), ensure_ascii=False)
-        except json.JSONDecodeError:
-            canonical_body = raw_body
-        return hmac.new(webhook_secret.encode(), f"{event_id}.{canonical_body}".encode(), hashlib.sha256).hexdigest()
+    def signature(event_id: str, raw_body: str | bytes, webhook_secret: str) -> str:
+        body = raw_body if isinstance(raw_body, bytes) else raw_body.encode("utf-8")
+        return hmac.new(webhook_secret.encode(), event_id.encode() + b"." + body, hashlib.sha256).hexdigest()
 
     def _header(self, headers: dict[str, str], name: str) -> str:
         normalized = name.lower()

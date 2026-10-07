@@ -19,11 +19,11 @@ TOKEN_SCOPE = "payment_requests.write transactions.read balances.read refunds.wr
 
 def default_ipn_events() -> list[str]:
     return [
-        "payment.succeeded",
+        "payment.success",
         "payment.failed",
         "payment.cancelled",
         "payment.expired",
-        "refund.succeeded",
+        "refund.success",
         "payment.refunded",
         "chargeback.created",
         "dispute.created",
@@ -91,9 +91,9 @@ def verify_webhook(raw_body: str, headers: dict[str, str], webhook_secret: str, 
     if not timestamp.isdigit() or abs(int(time.time()) - int(timestamp)) > tolerance_seconds:
         raise ValueError("Invalid or expired PayXCommerce webhook timestamp.")
 
-    payload = json.loads(raw_body)
-    canonical_body = json.dumps(payload, separators=(",", ":"), ensure_ascii=False)
-    expected = hmac.new(webhook_secret.encode(), f"{event_id}.{canonical_body}".encode(), hashlib.sha256).hexdigest()
+    body = raw_body if isinstance(raw_body, bytes) else raw_body.encode("utf-8")
+    payload = json.loads(body.decode("utf-8"))
+    expected = hmac.new(webhook_secret.encode(), event_id.encode() + b"." + body, hashlib.sha256).hexdigest()
     if not hmac.compare_digest(expected, signature):
         raise ValueError("Invalid PayXCommerce webhook signature.")
     return payload

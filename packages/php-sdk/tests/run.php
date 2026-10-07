@@ -60,8 +60,19 @@ $decoded = $verifier->verify($rawBody, [
     'X-PXC-Signature' => $signature,
 ]);
 assertSameValue(EventTypes::PAYMENT_SUCCEEDED, $decoded['event_type'], 'Webhook verifier should return decoded payload.');
-assertTrueValue(EventTypes::isSuccessfulPayment('payment.success'), 'Legacy successful payment event should be recognized.');
-assertSameValue(['payment.succeeded', 'payment.failed', 'payment.cancelled', 'payment.expired', 'refund.succeeded', 'payment.refunded', 'chargeback.created', 'dispute.created'], EventTypes::defaultSubscriptions(), 'Default webhook subscriptions should use current event names.');
+assertTrueValue(EventTypes::isSuccessfulPayment('payment.success'), 'Canonical successful payment event should be recognized.');
+assertSameValue(['payment.success', 'payment.failed', 'payment.cancelled', 'payment.expired', 'refund.success', 'payment.refunded', 'chargeback.created', 'dispute.created'], EventTypes::defaultSubscriptions(), 'Default webhook subscriptions should use canonical event names.');
+$unicodeBody = "{\n  \"event_id\":\"{$eventId}\",\"customer\":\"José / 東京\",\"amount\":1.2300\n}";
+$unicodeExpected = hash_hmac('sha256', $eventId . '.' . $unicodeBody, 'webhook_secret');
+assertSameValue($unicodeExpected, Verifier::signature($eventId, $unicodeBody, 'webhook_secret'), 'Webhook signature must preserve exact raw JSON bytes.');
+$escapedBody = '{"event_id":"PXEVT-TEST","path":"https:\\/\\/example.test\\/a","message":"line\\nvalue","amount":1e2}';
+$escapedSignature = Verifier::signature($eventId, $escapedBody, 'webhook_secret');
+$escapedDecoded = $verifier->verify($escapedBody, [
+    'X-PXC-Event-ID' => $eventId,
+    'X-PXC-Timestamp' => (string) time(),
+    'X-PXC-Signature' => $escapedSignature,
+]);
+assertSameValue(100.0, $escapedDecoded['amount'], 'Escaped JSON and exponent-form numbers should verify from their exact raw representation.');
 assertSameValue('secret=[redacted]', Redactor::text('secret=abc123'), 'Redactor should hide secrets in log text.');
 assertSameValue('[redacted]', Redactor::context(['client_secret' => 'abc123'])['client_secret'], 'Redactor should hide secret context values.');
 assertSameValue('test', Environment::normalize('sandbox'), 'Unknown environment labels should normalize to test.');
@@ -84,6 +95,22 @@ try {
     throw new RuntimeException('Invalid webhook signature should fail.');
 } catch (WebhookVerificationException) {
     assertTrueValue(true, 'Invalid webhook signature failed as expected.');
+}
+
+foreach ([
+    ['body' => '{invalid', 'timestamp' => (string) time(), 'message' => 'Invalid JSON should fail.'],
+    ['body' => $rawBody, 'timestamp' => (string) (time() - 1000), 'message' => 'Stale timestamp should fail.'],
+] as $invalidWebhook) {
+    try {
+        $verifier->verify($invalidWebhook['body'], [
+            'X-PXC-Event-ID' => $eventId,
+            'X-PXC-Timestamp' => $invalidWebhook['timestamp'],
+            'X-PXC-Signature' => Verifier::signature($eventId, $invalidWebhook['body'], 'webhook_secret'),
+        ]);
+        throw new RuntimeException($invalidWebhook['message']);
+    } catch (WebhookVerificationException) {
+        assertTrueValue(true, $invalidWebhook['message']);
+    }
 }
 
 $httpClient = new CurlHttpClient(new Config());

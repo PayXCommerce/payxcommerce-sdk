@@ -68,7 +68,7 @@ Transaction lookup responses include explicit payment currency roles. Prefer `re
 
 Request-level webhooks are useful when one merchant account powers multiple stores, platforms, or backend services. Pass `webhook_url` when creating a payment request to route only that request's events to a specific endpoint. Leave it out to use the merchant default webhook URL configured in the dashboard.
 
-Use `PayXCommerce\Webhooks\EventTypes` to avoid hard-coding event names. It includes current event names and helper methods for legacy aliases such as `payment.success` and `refund.success`.
+Use `PayXCommerce\Webhooks\EventTypes` to avoid hard-coding event names. `payment.success` and `refund.success` are canonical; helper methods also accept legacy aliases such as `payment.succeeded` and `refund.succeeded`.
 
 ```php
 use PayXCommerce\Webhooks\EventTypes;

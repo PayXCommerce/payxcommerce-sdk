@@ -8,7 +8,7 @@ class WC_Order
     public bool $paid = false;
     public string $completedTransaction = '';
 
-    public function __construct(public int $id)
+    public function __construct(public int $id, private string $total = '100.00', private string $currency = 'USD')
     {
     }
 
@@ -37,6 +37,16 @@ class WC_Order
     public function add_order_note(string $note): void
     {
         $this->meta['note'] = $note;
+    }
+
+    public function get_total(): string
+    {
+        return $this->total;
+    }
+
+    public function get_currency(): string
+    {
+        return $this->currency;
     }
 }
 
@@ -102,6 +112,8 @@ callPrivate($handler, 'applyEvent', $orderFromMeta, 'payment.success', [
     'payment_request_id' => 'PXRQ-20260715-TEST01',
     'transaction_reference' => 'PXTRX-20260715-AAA111',
     'payment_id' => 'PXPAY-20260715-BBB222',
+    'amount' => '100.0000',
+    'currency' => 'usd',
 ]);
 assertTrue($orderFromMeta->paid, 'Successful webhook should complete the WooCommerce payment.');
 assertTrue($orderFromMeta->completedTransaction === 'PXTRX-20260715-AAA111', 'Successful webhook should pass PayX transaction reference to WooCommerce.');
@@ -124,6 +136,24 @@ $resolvedId = callPrivate($handler, 'findOrder', [
         'order_id' => '44',
     ],
 ]);
-assertTrue($resolvedId === $orderFromId, 'metadata.order_id should still resolve the WooCommerce order directly.');
+assertTrue($resolvedId === null, 'Unsigned metadata.order_id must not resolve an order without a stored PayX reference.');
+
+$resolvedBound = callPrivate($handler, 'findOrder', [
+    'payment_request_reference' => 'PXRQ-20260715-TEST01',
+    'metadata' => ['order_id' => '44'],
+]);
+assertTrue($resolvedBound === $orderFromMeta, 'Stored PayX request binding must win over conflicting payload order metadata.');
+
+$mismatchRejected = false;
+try {
+    callPrivate($handler, 'applyEvent', new WC_Order(45, '19.99', 'USD'), 'payment.success', [
+        'payment_request_reference' => 'PXRQ-MISMATCH',
+        'amount' => '20.00',
+        'currency' => 'USD',
+    ]);
+} catch (RuntimeException $exception) {
+    $mismatchRejected = str_contains($exception->getMessage(), 'amount');
+}
+assertTrue($mismatchRejected, 'Payment-success webhook must reject an amount mismatch before completing the order.');
 
 echo "WooCommerce webhook handler smoke passed\n";

@@ -56,41 +56,8 @@ class ModelExtensionPaymentPayXCommerce extends Model
     public function findOrderId(array $payload): int
     {
         foreach ([
-            'metadata.order_id',
-            'metadata.opencart_order_id',
-            'data.metadata.order_id',
-            'data.metadata.opencart_order_id',
-            'payload.metadata.order_id',
-            'payload.metadata.opencart_order_id',
-            'resource.metadata.order_id',
-            'resource.metadata.opencart_order_id',
-            'merchant_order_id',
-            'merchant_reference',
-            'order_id',
-            'data.merchant_order_id',
-            'data.merchant_reference',
-            'data.order_id',
-            'payload.merchant_order_id',
-            'payload.merchant_reference',
-            'payload.order_id',
-            'resource.merchant_order_id',
-            'resource.merchant_reference',
-            'resource.order_id',
-        ] as $path) {
-            $value = $this->payloadValue($payload, $path);
-            if ($value === null || $value === '') {
-                continue;
-            }
-            if (is_numeric($value)) {
-                return (int) $value;
-            }
-            if (preg_match('/^OC3-(\d+)$/i', (string) $value, $matches)) {
-                return (int) $matches[1];
-            }
-        }
-
-        foreach ([
             'request_number' => 'payx_request_number',
+            'payment_request_reference' => 'payx_request_number',
             'payment_request_id' => 'payx_request_number',
             'payment_request_number' => 'payx_request_number',
             'reference' => 'payx_request_number',
@@ -113,30 +80,13 @@ class ModelExtensionPaymentPayXCommerce extends Model
         return 0;
     }
 
-    public function returnReferenceMatches(int $order_id, string $merchant_reference): bool
+    public function claimWebhookEvent(string $event_id, int $order_id, string $event_type, string $raw_body): bool
     {
-        if ($order_id <= 0 || $merchant_reference === '') {
-            return false;
-        }
+        $payload_hash = hash('sha256', $raw_body);
+        $retryable = "((processing_status = 'failed' OR (processing_status = 'processing' AND created_at < DATE_SUB(NOW(), INTERVAL 5 MINUTE))) AND payload_hash = VALUES(payload_hash))";
+        $this->db->query("INSERT INTO `" . DB_PREFIX . "payxcommerce_webhook_event` SET event_id = '" . $this->db->escape($event_id) . "', order_id = '" . (int) $order_id . "', event_type = '" . $this->db->escape($event_type) . "', payload_hash = '" . $payload_hash . "', processing_status = 'processing', created_at = NOW() ON DUPLICATE KEY UPDATE order_id = IF(" . $retryable . ", VALUES(order_id), order_id), event_type = IF(" . $retryable . ", VALUES(event_type), event_type), error_message = IF(" . $retryable . ", NULL, error_message), processed_at = IF(" . $retryable . ", NULL, processed_at), created_at = IF(" . $retryable . ", NOW(), created_at), processing_status = IF(" . $retryable . ", 'processing', processing_status)");
 
-        $query = $this->db->query("SELECT order_id FROM `" . DB_PREFIX . "payxcommerce_order` WHERE order_id = '" . (int) $order_id . "' AND merchant_reference = '" . $this->db->escape($merchant_reference) . "' LIMIT 1");
-        return (bool) $query->num_rows;
-    }
-
-    public function markReturnSuccess(int $order_id): void
-    {
-        $this->db->query("UPDATE `" . DB_PREFIX . "payxcommerce_order` SET payment_status = 'payment.return_success', updated_at = NOW() WHERE order_id = '" . (int) $order_id . "' AND payment_status NOT IN ('payment.success', 'payment.succeeded', 'payment.refunded', 'refund.success', 'refund.succeeded')");
-    }
-
-    public function webhookEventExists(string $event_id): bool
-    {
-        $query = $this->db->query("SELECT id FROM `" . DB_PREFIX . "payxcommerce_webhook_event` WHERE event_id = '" . $this->db->escape($event_id) . "' LIMIT 1");
-        return (bool) $query->num_rows;
-    }
-
-    public function recordWebhookEvent(string $event_id, int $order_id, string $event_type, string $raw_body): void
-    {
-        $this->db->query("INSERT INTO `" . DB_PREFIX . "payxcommerce_webhook_event` SET event_id = '" . $this->db->escape($event_id) . "', order_id = '" . (int) $order_id . "', event_type = '" . $this->db->escape($event_type) . "', payload_hash = '" . hash('sha256', $raw_body) . "', processing_status = 'processing', created_at = NOW()");
+        return $this->db->countAffected() > 0;
     }
 
     public function completeWebhookEvent(string $event_id, string $status = 'processed', string $error = ''): void

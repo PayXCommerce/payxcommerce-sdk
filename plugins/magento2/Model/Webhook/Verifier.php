@@ -26,8 +26,7 @@ class Verifier
             throw new \RuntimeException('Webhook body is not valid JSON.');
         }
 
-        $canonicalBody = json_encode($payload, JSON_UNESCAPED_SLASHES);
-        $expected = hash_hmac('sha256', $eventId . '.' . $canonicalBody, $this->config->secret('webhook_secret', $storeId));
+        $expected = hash_hmac('sha256', $eventId . '.' . $rawBody, $this->config->secret('webhook_secret', $storeId));
         if (!hash_equals($expected, $signature)) {
             throw new \RuntimeException('Invalid webhook signature.');
         }

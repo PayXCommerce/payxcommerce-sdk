@@ -8,6 +8,7 @@ use Magento\Framework\App\CsrfAwareActionInterface;
 use Magento\Framework\App\Request\InvalidRequestException;
 use Magento\Framework\App\RequestInterface;
 use Magento\Framework\Controller\Result\RawFactory;
+use Magento\Store\Model\StoreManagerInterface;
 use PayXCommerce\Payment\Model\Logger;
 use PayXCommerce\Payment\Model\Webhook\Processor;
 use PayXCommerce\Payment\Model\Webhook\Verifier;
@@ -19,7 +20,8 @@ class Index implements HttpPostActionInterface, CsrfAwareActionInterface
         private readonly RawFactory $rawFactory,
         private readonly Verifier $verifier,
         private readonly Processor $processor,
-        private readonly Logger $logger
+        private readonly Logger $logger,
+        private readonly StoreManagerInterface $storeManager
     ) {
     }
 
@@ -30,12 +32,9 @@ class Index implements HttpPostActionInterface, CsrfAwareActionInterface
         $eventId = (string) $this->request->getHeader('X-PXC-Event-ID');
         $timestamp = (string) $this->request->getHeader('X-PXC-Timestamp');
         $signature = (string) $this->request->getHeader('X-PXC-Signature');
-        $storeId = null;
-
-        $decoded = json_decode($rawBody, true);
-        if (is_array($decoded) && isset($decoded['metadata']['store_id'])) {
-            $storeId = (int) $decoded['metadata']['store_id'];
-        }
+        // Store context comes from Magento's routed store/base URL, never
+        // from unsigned webhook payload metadata.
+        $storeId = (int) $this->storeManager->getStore()->getId();
 
         try {
             $payload = $this->verifier->verify($eventId, $timestamp, $signature, $rawBody, $storeId);
@@ -45,7 +44,7 @@ class Index implements HttpPostActionInterface, CsrfAwareActionInterface
         }
 
         try {
-            $message = $this->processor->process($payload, $eventId);
+            $message = $this->processor->process($payload, $eventId, $storeId);
             $code = str_starts_with($message, 'Accepted') ? 202 : 200;
             return $result->setHttpResponseCode($code)->setContents($message);
         } catch (\Throwable $exception) {

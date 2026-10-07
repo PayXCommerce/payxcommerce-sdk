@@ -65,34 +65,10 @@ final class Handler
 
     private function findOrder(array $payload): ?WC_Order
     {
-        foreach ([
-            'metadata.order_id',
-            'metadata.woocommerce_order_id',
-            'data.metadata.order_id',
-            'data.metadata.woocommerce_order_id',
-            'payload.metadata.order_id',
-            'payload.metadata.woocommerce_order_id',
-            'resource.metadata.order_id',
-            'resource.metadata.woocommerce_order_id',
-            'merchant_order_id',
-            'data.merchant_order_id',
-            'payload.merchant_order_id',
-            'resource.merchant_order_id',
-        ] as $path) {
-            $orderId = $this->payloadValue($payload, $path);
-            if ($orderId === null || (string) $orderId === '') {
-                continue;
-            }
-
-            $order = wc_get_order((int) $orderId);
-            if ($order) {
-                return $order;
-            }
-        }
-
         $metaLookups = [
             Metadata::REQUEST_NUMBER => [
                 'request_number',
+                'payment_request_reference',
                 'payment_request_id',
                 'payment_request_number',
                 'reference',
@@ -159,6 +135,10 @@ final class Handler
 
     private function applyEvent(WC_Order $order, string $eventType, array $payload): void
     {
+        if (EventTypes::isSuccessfulPayment($eventType)) {
+            $this->assertSuccessfulPaymentMatchesOrder($order, $payload);
+        }
+
         foreach ([
             Metadata::REQUEST_NUMBER => ['request_number', 'payment_request_id', 'payment_request_number', 'reference'],
             Metadata::INVOICE_NUMBER => ['invoice_number'],
@@ -189,5 +169,51 @@ final class Handler
             EventTypes::isDisputeOrChargeback($eventType) => $order->update_status('on-hold', __('Dispute or chargeback created.', 'payxcommerce-gateway')),
             default => $order->add_order_note(sprintf(__('Payment event received: %s', 'payxcommerce-gateway'), $eventType)),
         };
+    }
+
+    private function assertSuccessfulPaymentMatchesOrder(WC_Order $order, array $payload): void
+    {
+        $amount = (string) ($this->payloadValue($payload, 'amount')
+            ?? $this->payloadValue($payload, 'request_amount')
+            ?? $this->payloadValue($payload, 'data.amount')
+            ?? $this->payloadValue($payload, 'resource.amount')
+            ?? '');
+        if ($amount !== '' && !$this->decimalEquals((string) $order->get_total(), $amount)) {
+            throw new \RuntimeException('Webhook payment amount does not match the bound WooCommerce order.');
+        }
+
+        $currency = strtoupper((string) ($this->payloadValue($payload, 'currency')
+            ?? $this->payloadValue($payload, 'request_currency')
+            ?? $this->payloadValue($payload, 'data.currency')
+            ?? $this->payloadValue($payload, 'resource.currency')
+            ?? ''));
+        if ($currency !== '' && $currency !== strtoupper((string) $order->get_currency())) {
+            throw new \RuntimeException('Webhook payment currency does not match the bound WooCommerce order.');
+        }
+
+        $environment = strtolower((string) ($this->payloadValue($payload, 'environment') ?? ''));
+        $expectedEnvironment = strtolower((string) $order->get_meta(Metadata::ENVIRONMENT));
+        if ($environment !== '' && $expectedEnvironment !== '' && $environment !== $expectedEnvironment) {
+            throw new \RuntimeException('Webhook environment does not match the bound WooCommerce order.');
+        }
+    }
+
+    private function decimalEquals(string $expected, string $actual): bool
+    {
+        $normalize = static function (string $value): ?string {
+            $value = trim($value);
+            if (!preg_match('/^([+-]?)(\d+)(?:\.(\d+))?$/', $value, $matches)) {
+                return null;
+            }
+            $integer = ltrim($matches[2], '0');
+            $fraction = rtrim($matches[3] ?? '', '0');
+            $normalized = ($integer === '' ? '0' : $integer) . ($fraction === '' ? '' : '.' . $fraction);
+            return $matches[1] === '-' && $normalized !== '0' ? '-' . $normalized : $normalized;
+        };
+
+        $expectedNormalized = $normalize($expected);
+        $actualNormalized = $normalize($actual);
+
+        return $expectedNormalized !== null && $expectedNormalized === $actualNormalized;
     }
 }

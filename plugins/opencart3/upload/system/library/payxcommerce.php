@@ -10,6 +10,18 @@ class PayXCommerce
     public function __construct(array $settings)
     {
         $this->settings = $settings;
+        $this->assertSafeBaseUrl($this->setting('base_url', 'https://payxcommerce.com/api/v1'));
+    }
+
+    private function assertSafeBaseUrl(string $baseUrl): void
+    {
+        $parts = parse_url($baseUrl);
+        $scheme = strtolower((string) ($parts['scheme'] ?? ''));
+        $host = strtolower((string) ($parts['host'] ?? ''));
+        $local = in_array($host, ['localhost', '127.0.0.1', '::1'], true) || str_ends_with($host, '.test');
+        if (!$host || ($scheme !== 'https' && !($scheme === 'http' && $local))) {
+            throw new RuntimeException('PayXCommerce API base URL must use HTTPS except for localhost or .test development hosts.');
+        }
     }
 
     public function validateCredentials(): bool
@@ -75,12 +87,9 @@ class PayXCommerce
             throw new RuntimeException('Webhook body is not valid JSON.');
         }
 
-        $canonicalBody = json_encode($payload);
-        $legacyCanonicalBody = json_encode($payload, JSON_UNESCAPED_SLASHES);
-        $expected = hash_hmac('sha256', $eventId . '.' . $canonicalBody, $this->setting('webhook_secret'));
-        $legacyExpected = hash_hmac('sha256', $eventId . '.' . $legacyCanonicalBody, $this->setting('webhook_secret'));
+        $expected = hash_hmac('sha256', $eventId . '.' . $rawBody, $this->setting('webhook_secret'));
 
-        if (!hash_equals($expected, $signature) && !hash_equals($legacyExpected, $signature)) {
+        if (!hash_equals($expected, $signature)) {
             throw new RuntimeException('Invalid webhook signature.');
         }
 

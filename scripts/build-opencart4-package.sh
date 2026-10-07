@@ -5,6 +5,9 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SOURCE_DIR="$ROOT/plugins/opencart4/upload/extension/payxcommerce"
 DIST_DIR="$ROOT/dist/plugins"
 PACKAGE="$DIST_DIR/payxcommerce.ocmod.zip"
+STAGE="$(mktemp -d)"
+SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-1767225600}"
+trap 'rm -rf "$STAGE"' EXIT
 
 if [[ ! -f "$SOURCE_DIR/install.json" ]]; then
   echo "Missing OpenCart 4 install.json at $SOURCE_DIR/install.json" >&2
@@ -13,10 +16,12 @@ fi
 
 mkdir -p "$DIST_DIR"
 rm -f "$PACKAGE" "$DIST_DIR"/payxcommerce-opencart4-gateway-*.ocmod.zip
+rsync -a "$SOURCE_DIR/" "$STAGE/"
+find "$STAGE" -exec touch -h -d "@${SOURCE_DATE_EPOCH}" {} +
 
 (
-  cd "$SOURCE_DIR"
-  zip -qr "$PACKAGE" install.json admin catalog system
+  cd "$STAGE"
+  zip -Xqr "$PACKAGE" install.json admin catalog system
 )
 
 if ! zipinfo -1 "$PACKAGE" | grep -qx 'install.json'; then
@@ -42,3 +47,4 @@ if ! zipinfo -1 "$PACKAGE" | grep -qx 'system/library/payxcommerce.php'; then
 fi
 
 echo "$PACKAGE"
+sha256sum "$PACKAGE"

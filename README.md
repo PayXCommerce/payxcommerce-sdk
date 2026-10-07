@@ -32,19 +32,11 @@ This repository is the public integration home for PayXCommerce. It starts with 
 
 ## Install PHP SDK
 
-```bash
-composer require payxcommerce/payxcommerce-php
-```
-
-For local development, use the package in `packages/php-sdk`. Ecommerce plugin code is included for WooCommerce, OpenCart 3, OpenCart 4, and Magento 2.
+The PHP SDK is not currently published on Packagist. Install it from this repository with a Composer path/VCS repository, pinned to a reviewed commit SHA. For local development, use `packages/php-sdk`.
 
 ## Install Python SDK
 
-```bash
-pip install payxcommerce
-```
-
-Local development install:
+The Python SDK is not currently published on PyPI. Install the checked-out source (preferably pinned to a reviewed tag/SHA):
 
 ```bash
 pip install -e packages/python-sdk
@@ -52,11 +44,7 @@ pip install -e packages/python-sdk
 
 ## Install Node.js SDK
 
-```bash
-npm install @payxcommerce/payxcommerce
-```
-
-Local development install:
+The Node.js SDK is not currently published on npm. Install the checked-out source (preferably pinned to a reviewed tag/SHA):
 
 ```bash
 npm install ./packages/node-sdk
@@ -87,7 +75,7 @@ $client = new Client(new Config(
 ));
 
 $response = $client->paymentRequests()->create([
-    'amount' => 125.50,
+    'amount' => '125.50',
     'currency' => 'USD',
     'purpose' => 'Invoice INV-1001',
     'customer' => [
@@ -103,6 +91,12 @@ echo $response['checkout_url'];
 ## Security
 
 Never expose HMAC secret keys, Developer App client secrets, Bearer tokens, or webhook secrets in frontend code. All signing and token creation must happen server-side.
+
+Webhook HMAC verification must use the exact raw HTTP request-body bytes. Do not parse and re-serialize JSON before verification. Non-local API endpoints must use HTTPS.
+
+## Releases and checksums
+
+Public GitHub and package-registry publication are controlled release actions and are not implied by changes to the private development repository. Release operators must tag the reviewed commit, build artifacts with the scripts in `scripts/`, publish SHA-256 checksums, and verify the extracted artifact contents against that exact tag before publication.
 
 
 ## Platform Implementation

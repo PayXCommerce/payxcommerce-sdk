@@ -20,6 +20,13 @@ const signature = Verifier.signature(eventId, rawBody, 'webhook_secret');
 const decoded = new Verifier('webhook_secret').verify(rawBody, { 'X-PXC-Event-ID': eventId, 'X-PXC-Timestamp': String(Math.floor(Date.now() / 1000)), 'X-PXC-Signature': signature });
 same(eventTypes.PAYMENT_SUCCEEDED, decoded.event_type, 'Webhook verifier should return decoded payload.');
 ok(eventTypes.isSuccessfulPayment('payment.success'), 'Legacy successful payment event should be recognized.');
+const unicodeBody = Buffer.from(`{\n  "event_id":"${eventId}","customer":"José / 東京","amount":1.2300\n}`, 'utf8');
+const unicodeExpected = crypto.createHmac('sha256', 'webhook_secret').update(`${eventId}.`, 'utf8').update(unicodeBody).digest('hex');
+same(unicodeExpected, Verifier.signature(eventId, unicodeBody, 'webhook_secret'), 'Webhook signature must preserve exact raw JSON bytes.');
+const escapedBody = Buffer.from('{"event_id":"PXEVT-TEST","path":"https:\\/\\/example.test\\/a","message":"line\\nvalue","amount":1e2}', 'utf8');
+const escapedSignature = Verifier.signature(eventId, escapedBody, 'webhook_secret');
+const escapedDecoded = new Verifier('webhook_secret').verify(escapedBody, { 'X-PXC-Event-ID': eventId, 'X-PXC-Timestamp': String(Math.floor(Date.now() / 1000)), 'X-PXC-Signature': escapedSignature });
+same(100, escapedDecoded.amount, 'Escaped JSON and exponent-form numbers should verify from their exact raw representation.');
 same('secret=[redacted]', redactor.text('secret=abc123'), 'Redactor should hide secrets in text.');
 same('[redacted]', redactor.context({ client_secret: 'abc123' }).client_secret, 'Redactor should hide secret context values.');
 
@@ -52,6 +59,22 @@ try {
   throw new Error('Invalid webhook signature should fail.');
 } catch (error) {
   ok(error instanceof errors.WebhookVerificationError, 'Invalid webhook signature failed as expected.');
+}
+
+for (const invalidWebhook of [
+  { body: '{invalid', timestamp: String(Math.floor(Date.now() / 1000)), message: 'Invalid JSON should fail.' },
+  { body: rawBody, timestamp: String(Math.floor(Date.now() / 1000) - 1000), message: 'Stale timestamp should fail.' }
+]) {
+  try {
+    new Verifier('webhook_secret').verify(invalidWebhook.body, {
+      'X-PXC-Event-ID': eventId,
+      'X-PXC-Timestamp': invalidWebhook.timestamp,
+      'X-PXC-Signature': Verifier.signature(eventId, invalidWebhook.body, 'webhook_secret')
+    });
+    throw new Error(invalidWebhook.message);
+  } catch (error) {
+    ok(error instanceof errors.WebhookVerificationError, invalidWebhook.message);
+  }
 }
 
 testValidationErrorFormatting()

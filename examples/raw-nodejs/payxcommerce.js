@@ -9,11 +9,11 @@ const TOKEN_SCOPE = 'payment_requests.write transactions.read balances.read refu
 
 function defaultIpnEvents() {
   return [
-    'payment.succeeded',
+    'payment.success',
     'payment.failed',
     'payment.cancelled',
     'payment.expired',
-    'refund.succeeded',
+    'refund.success',
     'payment.refunded',
     'chargeback.created',
     'dispute.created'
@@ -108,9 +108,9 @@ function verifyWebhook(rawBody, headers, webhookSecret, toleranceSeconds = 300) 
     throw new Error('Invalid or expired PayXCommerce webhook timestamp.');
   }
 
-  const payload = JSON.parse(rawBody);
-  const canonicalBody = JSON.stringify(payload);
-  const expected = crypto.createHmac('sha256', webhookSecret).update(`${eventId}.${canonicalBody}`).digest('hex');
+  const body = Buffer.isBuffer(rawBody) ? rawBody : Buffer.from(String(rawBody), 'utf8');
+  const payload = JSON.parse(body.toString('utf8'));
+  const expected = crypto.createHmac('sha256', webhookSecret).update(`${eventId}.`, 'utf8').update(body).digest('hex');
   if (expected.length !== signature.length) {
     throw new Error('Invalid PayXCommerce webhook signature.');
   }

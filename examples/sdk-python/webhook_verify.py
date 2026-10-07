@@ -5,7 +5,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "packages" / "pytho
 
 from payxcommerce.webhooks.verifier import Verifier
 
-raw_body = '{"event_id":"PXEVT-TEST","event_type":"payment.succeeded"}'
+raw_body = '{"event_id":"PXEVT-TEST","event_type":"payment.success"}'
 headers = {
     "X-PXC-Event-ID": "PXEVT-TEST",
     "X-PXC-Timestamp": "REPLACE_WITH_UNIX_TIMESTAMP",

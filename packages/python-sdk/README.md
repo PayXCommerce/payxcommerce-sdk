@@ -37,7 +37,7 @@ response = client.payment_requests().create({
     "environment": "test",
     "is_test": True,
     "webhook_url": "https://example.com/payxcommerce/webhook/order-1001",
-    "ipn_events": ["payment.succeeded", "payment.failed"],
+    "ipn_events": ["payment.success", "payment.failed"],
 })
 print(response["checkout_url"])
 ```

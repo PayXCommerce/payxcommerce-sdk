@@ -265,12 +265,22 @@ final class Gateway extends WC_Payment_Gateway
             return new WP_Error('payxcommerce_transaction_missing', __('Missing transaction reference.', 'payxcommerce-gateway'));
         }
 
+        $refundAmount = $amount !== null ? wc_format_decimal((string) $amount, wc_get_price_decimals()) : '';
+        $fingerprint = hash('sha256', $refundAmount . '|' . trim((string) $reason));
+        $metaKey = '_payxcommerce_refund_idempotency_' . $fingerprint;
+        $idempotencyKey = (string) $order->get_meta($metaKey);
+        if ($idempotencyKey === '') {
+            $idempotencyKey = 'woocommerce-refund-' . $order->get_id() . '-' . $fingerprint;
+            $order->update_meta_data($metaKey, $idempotencyKey);
+            $order->save();
+        }
+
         try {
             $response = $this->sdk()->client()->refunds()->create([
                 'transaction_reference' => $transactionReference,
-                'amount' => $amount !== null ? (float) $amount : null,
+                'amount' => $refundAmount !== '' ? $refundAmount : null,
                 'reason' => $reason ?: 'WooCommerce refund request',
-            ], 'woocommerce-refund-' . $order->get_id() . '-' . time());
+            ], $idempotencyKey);
         } catch (\Throwable $exception) {
             $this->logger->info('Refund request failed: ' . $exception->getMessage());
             return new WP_Error('payxcommerce_refund_failed', $exception->getMessage());
@@ -294,7 +304,7 @@ final class Gateway extends WC_Payment_Gateway
     {
         return $this->sdk()->client()->paymentRequests()->create(
             $this->payloadBuilder->build($order, WC()->api_request_url('payxcommerce'), $this->get_option('environment') !== 'live'),
-            'woocommerce-order-' . $order->get_id() . '-attempt-' . time()
+            'woocommerce-order-' . $order->get_id() . '-' . $this->get_option('environment', 'test')
         );
     }
 

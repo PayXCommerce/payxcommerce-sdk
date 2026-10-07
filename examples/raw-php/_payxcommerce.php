@@ -64,11 +64,11 @@ function payx_hmac_headers(string $publicKey, string $secretKey, string $body, ?
 function payx_default_ipn_events(): array
 {
     return [
-        'payment.succeeded',
+        'payment.success',
         'payment.failed',
         'payment.cancelled',
         'payment.expired',
-        'refund.succeeded',
+        'refund.success',
         'payment.refunded',
         'chargeback.created',
         'dispute.created',
