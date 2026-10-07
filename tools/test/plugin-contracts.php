@@ -69,9 +69,12 @@ contract(!str_contains($wooWebhook, "'metadata.order_id'"), 'WooCommerce must no
 
 $magentoWebhook = source($root . '/plugins/magento2/Controller/Webhook/Index.php');
 $magentoCheckout = source($root . '/plugins/magento2/Controller/Checkout/Start.php');
+$magentoApiClient = source($root . '/plugins/magento2/Model/Api/Client.php');
 contract(str_contains($magentoWebhook, 'StoreManagerInterface'), 'Magento webhook verification must use routed store context.');
 contract(!str_contains($magentoWebhook, "decoded['metadata']['store_id']"), 'Magento must not choose secrets from unsigned payload metadata.');
 contract(!str_contains($magentoCheckout, "time()"), 'Magento checkout idempotency must be stable.');
 contract(str_contains(source($root . '/plugins/magento2/Model/Webhook/Processor.php'), 'assertSuccessfulPaymentMatchesOrder'), 'Magento must reject mismatched payment-success amount/currency/environment data.');
+contract(str_contains($magentoApiClient, "\$eventId . '.' . \$rawBody"), 'Magento API helper must verify signatures against the exact raw request body.');
+contract(!str_contains($magentoApiClient, "\$eventId . '.' . json_encode"), 'Magento API helper must not normalize JSON before webhook signature verification.');
 
 echo "PayXCommerce plugin security contracts passed ({$tests} assertions).\n";

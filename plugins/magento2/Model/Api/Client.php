@@ -84,11 +84,10 @@ class Client
         if (abs(time() - (int) $timestamp) > 300) {
             return false;
         }
-        $payload = json_decode($rawBody, true);
-        if (!is_array($payload)) {
+        if (!is_array(json_decode($rawBody, true))) {
             return false;
         }
-        $expected = hash_hmac('sha256', $eventId . '.' . json_encode($payload, JSON_UNESCAPED_SLASHES), $this->config->secret('webhook_secret', $storeId));
+        $expected = hash_hmac('sha256', $eventId . '.' . $rawBody, $this->config->secret('webhook_secret', $storeId));
         return hash_equals($expected, $signature);
     }
 
