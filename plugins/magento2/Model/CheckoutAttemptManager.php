@@ -15,7 +15,7 @@ class CheckoutAttemptManager
     public function withOrderLock(int $orderId, string $environment, callable $callback): mixed
     {
         $connection = $this->resourceConnection->getConnection();
-        $lockName = 'payx_m2_checkout_' . hash('sha256', $orderId . '|' . $environment);
+        $lockName = 'pxc_m2_co_' . substr(hash('sha256', $orderId . '|' . $environment), 0, 52);
         $acquired = (int) $connection->fetchOne('SELECT GET_LOCK(?, 10)', [$lockName]);
         if ($acquired !== 1) {
             throw new \RuntimeException('Another checkout attempt is already being prepared.');

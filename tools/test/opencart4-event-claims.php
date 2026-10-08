@@ -26,6 +26,8 @@ namespace {
     {
         public static array $events = [];
         public static array $locks = [];
+        public static array $acquiredLockNames = [];
+        public static array $releasedLockNames = [];
         private int $affected = 0;
 
         public function __construct(private readonly string $connection)
@@ -40,13 +42,19 @@ namespace {
             $this->affected = 0;
             if (str_starts_with($sql, 'SHOW COLUMNS')) return new ClaimQueryResult4(['Field' => 'claim_token']);
             if (preg_match("/GET_LOCK\('([^']+)'/", $sql, $match)) {
-                $owner = self::$locks[$match[1]] ?? null;
+                $lockName = stripslashes($match[1]);
+                if ($lockName === '' || strlen($lockName) > 64) throw new \RuntimeException('MySQL advisory lock names must contain 1 to 64 bytes.');
+                self::$acquiredLockNames[] = $lockName;
+                $owner = self::$locks[$lockName] ?? null;
                 if ($owner !== null && $owner !== $this->connection) return new ClaimQueryResult4(['acquired' => 0]);
-                self::$locks[$match[1]] = $this->connection;
+                self::$locks[$lockName] = $this->connection;
                 return new ClaimQueryResult4(['acquired' => 1]);
             }
             if (preg_match("/RELEASE_LOCK\('([^']+)'/", $sql, $match)) {
-                if ((self::$locks[$match[1]] ?? null) === $this->connection) unset(self::$locks[$match[1]]);
+                $lockName = stripslashes($match[1]);
+                if ($lockName === '' || strlen($lockName) > 64) throw new \RuntimeException('MySQL advisory lock names must contain 1 to 64 bytes.');
+                self::$releasedLockNames[] = $lockName;
+                if ((self::$locks[$lockName] ?? null) === $this->connection) unset(self::$locks[$lockName]);
                 return new ClaimQueryResult4(['released' => 1]);
             }
             if (str_starts_with($sql, 'INSERT INTO') && str_contains($sql, 'payxcommerce_webhook_event')) {
@@ -125,5 +133,17 @@ namespace {
     expectClaim4($second->completeWebhookEvent('evt-1', $tokenTwo), 'Current OpenCart 4 owner must finalize.');
     $second->releaseWebhookEventLock('evt-1');
 
-    echo "OpenCart 4 webhook owner fencing passed (7 assertions).\n";
+    $thirdToken = $first->claimWebhookEvent('evt-2', 12, 'payment.failed', '{"amount":"0.2"}');
+    expectClaim4(is_string($thirdToken) && $thirdToken !== '', 'A different OpenCart 4 event must be claimable.');
+    $first->releaseWebhookEventLock('evt-2');
+    expectClaim4($first->acquireCheckoutLock(11, 'test'), 'OpenCart 4 checkout lock must be acquirable with a MySQL-compatible name.');
+    $first->releaseCheckoutLock(11, 'test');
+
+    $acquiredNames = array_values(array_unique(ClaimDatabase4::$acquiredLockNames));
+    $releasedNames = array_values(array_unique(ClaimDatabase4::$releasedLockNames));
+    expectClaim4(count($acquiredNames) === 3, 'OpenCart 4 must derive stable, scope-specific lock names.');
+    expectClaim4($acquiredNames === $releasedNames, 'OpenCart 4 must release the exact lock name it acquired.');
+    expectClaim4(count(array_filter($acquiredNames, static fn (string $name): bool => $name !== '' && strlen($name) <= 64)) === 3, 'OpenCart 4 lock names must fit the MySQL 64-byte limit.');
+
+    echo "OpenCart 4 webhook and checkout locking passed (12 assertions).\n";
 }

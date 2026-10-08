@@ -2,6 +2,7 @@
 
 ## 2026-10-08
 
+- Kept every MySQL advisory lock identifier within the 64-byte platform limit across OpenCart webhook/checkout, WooCommerce checkout/refund, and Magento checkout paths, with executable acquire/release contracts.
 - Fenced OpenCart 3 and OpenCart 4 webhook processing with connection-scoped event locks and rotating owner tokens so a stale worker cannot apply or finalize a reclaimed event.
 - Replaced binary floating-point eligibility and invoice checks with exact decimal comparisons across WooCommerce, Magento 2, OpenCart 3, and OpenCart 4.
 - Added durable atomic webhook claim lifecycles for WooCommerce and Magento with failed/stale recovery and owner-token compare-and-set transitions.

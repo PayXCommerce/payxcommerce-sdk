@@ -36,6 +36,8 @@ namespace Magento\Framework\App {
     {
         public array $rows = [];
         public bool $lockHeld = false;
+        public array $acquiredLockNames = [];
+        public array $releasedLockNames = [];
 
         public function insert(string $table, array $row): void
         {
@@ -74,6 +76,11 @@ namespace Magento\Framework\App {
         public function fetchOne(string $sql, array $bind = []): int
         {
             if (str_contains($sql, 'GET_LOCK')) {
+                $lockName = (string) ($bind[0] ?? '');
+                if ($lockName === '' || strlen($lockName) > 64) {
+                    throw new \RuntimeException('MySQL advisory lock names must contain 1 to 64 bytes.');
+                }
+                $this->acquiredLockNames[] = $lockName;
                 if ($this->lockHeld) {
                     return 0;
                 }
@@ -81,6 +88,11 @@ namespace Magento\Framework\App {
                 return 1;
             }
             if (str_contains($sql, 'RELEASE_LOCK')) {
+                $lockName = (string) ($bind[0] ?? '');
+                if ($lockName === '' || strlen($lockName) > 64) {
+                    throw new \RuntimeException('MySQL advisory lock names must contain 1 to 64 bytes.');
+                }
+                $this->releasedLockNames[] = $lockName;
                 $this->lockHeld = false;
                 return 1;
             }
@@ -194,6 +206,7 @@ namespace {
 
     $locked = $attempts->withOrderLock(10, 'test', fn () => 'locked');
     lifecycleAssert($locked === 'locked' && !$connection->lockHeld, 'Magento advisory checkout lock must release after the operation.');
+    lifecycleAssert($connection->acquiredLockNames === $connection->releasedLockNames, 'Magento must release the exact advisory lock it acquired.');
 
     echo "Magento webhook and checkout lifecycle passed\n";
 }

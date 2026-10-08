@@ -44,6 +44,36 @@ final class FakeRefund
     }
 }
 
+final class FakeWpdb
+{
+    public array $acquired = [];
+    public array $released = [];
+
+    public function prepare(string $sql, string $lockName): string
+    {
+        if ($lockName === '' || strlen($lockName) > 64) {
+            throw new RuntimeException('MySQL advisory lock names must contain 1 to 64 bytes.');
+        }
+
+        return str_replace('%s', "'" . addslashes($lockName) . "'", $sql);
+    }
+
+    public function get_var(string $sql): int
+    {
+        if (!preg_match("/(GET_LOCK|RELEASE_LOCK)\('([^']+)'/", $sql, $match)) {
+            throw new RuntimeException('Unexpected advisory lock SQL: ' . $sql);
+        }
+        $lockName = stripslashes($match[2]);
+        if ($match[1] === 'GET_LOCK') {
+            $this->acquired[] = $lockName;
+        } else {
+            $this->released[] = $lockName;
+        }
+
+        return 1;
+    }
+}
+
 function sanitize_text_field(mixed $value): string
 {
     return trim((string) $value);
@@ -80,6 +110,7 @@ require_once __DIR__ . '/../../plugins/woocommerce/includes/Order/Metadata.php';
 use PayXCommerce\WooCommerce\Order\Metadata;
 
 $metadata = new Metadata();
+$wpdb = new FakeWpdb();
 $order = new WC_Order(77);
 $first = $metadata->prepareCheckoutAttempt($order, 'test', 'fingerprint-a');
 attemptAssert(!$first['reused'] && $first['key'] !== '', 'First checkout must persist a new stable attempt key.');
@@ -115,5 +146,10 @@ attemptAssert($completedRetry['completed'] && $completedRetry['key'] === $refund
 $order->refunds = [new FakeRefund(502), new FakeRefund(503)];
 $secondRefund = $metadata->prepareRefundAttempt($order, '5.00', 'Customer request', 'test');
 attemptAssert(!$secondRefund['reused'] && $secondRefund['key'] !== $refund['key'], 'A distinct WooCommerce refund record must receive a new stable attempt key.');
+
+attemptAssert($metadata->withCheckoutLock(77, 'test', static fn (): string => 'checkout') === 'checkout', 'WooCommerce checkout lock must execute and release.');
+attemptAssert($metadata->withRefundLock(77, 'test', static fn (): string => 'refund') === 'refund', 'WooCommerce refund lock must execute and release.');
+attemptAssert($wpdb->acquired === $wpdb->released, 'WooCommerce must release the exact advisory locks it acquired.');
+attemptAssert(count(array_unique($wpdb->acquired)) === 2, 'WooCommerce checkout and refund locks must use distinct namespaces.');
 
 echo "WooCommerce checkout attempt lifecycle passed\n";

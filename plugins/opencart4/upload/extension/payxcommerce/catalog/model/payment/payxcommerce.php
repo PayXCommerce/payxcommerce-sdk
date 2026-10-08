@@ -78,14 +78,14 @@ class Payxcommerce extends \Opencart\System\Engine\Model
 
     public function acquireCheckoutLock(int $order_id, string $environment): bool
     {
-        $name = 'payx_oc4_checkout_' . hash('sha256', $order_id . '|' . $environment);
+        $name = 'pxc_oc4_co_' . substr(hash('sha256', $order_id . '|' . $environment), 0, 52);
         $query = $this->db->query("SELECT GET_LOCK('" . $this->db->escape($name) . "', 10) AS acquired");
         return (int) ($query->row['acquired'] ?? 0) === 1;
     }
 
     public function releaseCheckoutLock(int $order_id, string $environment): void
     {
-        $name = 'payx_oc4_checkout_' . hash('sha256', $order_id . '|' . $environment);
+        $name = 'pxc_oc4_co_' . substr(hash('sha256', $order_id . '|' . $environment), 0, 52);
         $this->db->query("SELECT RELEASE_LOCK('" . $this->db->escape($name) . "')");
     }
 
@@ -218,7 +218,7 @@ class Payxcommerce extends \Opencart\System\Engine\Model
 
     private function webhookEventLockName(string $event_id): string
     {
-        return 'payx_oc4_webhook_' . hash('sha256', $event_id);
+        return 'pxc_oc4_wh_' . substr(hash('sha256', $event_id), 0, 52);
     }
 
     private function payloadCandidates(array $payload, string $key): array

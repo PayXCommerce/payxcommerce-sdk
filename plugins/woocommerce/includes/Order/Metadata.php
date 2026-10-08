@@ -77,7 +77,7 @@ final class Metadata
     {
         global $wpdb;
 
-        $lockName = 'payx_wc_checkout_' . hash('sha256', $orderId . '|' . $environment);
+        $lockName = 'pxc_wc_co_' . substr(hash('sha256', $orderId . '|' . $environment), 0, 52);
         $acquired = (int) $wpdb->get_var($wpdb->prepare('SELECT GET_LOCK(%s, 10)', $lockName));
         if ($acquired !== 1) {
             throw new \RuntimeException('Another checkout attempt is already being prepared.');
@@ -163,7 +163,7 @@ final class Metadata
     {
         global $wpdb;
 
-        $lockName = 'payx_wc_refund_' . hash('sha256', $orderId . '|' . $environment);
+        $lockName = 'pxc_wc_rf_' . substr(hash('sha256', $orderId . '|' . $environment), 0, 52);
         $acquired = (int) $wpdb->get_var($wpdb->prepare('SELECT GET_LOCK(%s, 10)', $lockName));
         if ($acquired !== 1) {
             throw new \RuntimeException('Another refund attempt is already being prepared.');
