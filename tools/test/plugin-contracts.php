@@ -54,6 +54,11 @@ foreach ([
     contract(str_contains($model, "processing_status = 'failed'"), $label . ' failed webhook delivery must be retryable.');
     contract(str_contains($model, 'DATE_SUB(NOW(), INTERVAL 5 MINUTE)'), $label . ' stale processing claims must be recoverable.');
     contract(str_contains($model, 'payload_hash = VALUES(payload_hash)'), $label . ' must not retry an event ID with a changed payload.');
+    contract(str_contains($model, 'claim_token = IF('), $label . ' reclaimed events must rotate the owner token.');
+    contract(str_contains($model, 'GET_LOCK(') && str_contains($model, 'RELEASE_LOCK('), $label . ' must fence business effects with a connection-scoped event lock.');
+    contract(str_contains($model, "claim_token = '"), $label . ' claim transitions must compare the owner token.');
+    contract(str_contains($controller, 'renewWebhookEventClaim'), $label . ' must verify ownership immediately before order effects.');
+    contract(str_contains($controller, 'finally') && str_contains($controller, 'releaseWebhookEventLock'), $label . ' must always release its event lock.');
     contract(!str_contains($controller, ". '-' . time()"), $label . ' checkout idempotency key must not contain time().');
     contract(str_contains($controller, 'prepareCheckoutAttempt'), $label . ' checkout must use a persisted attempt lifecycle.');
     contract(str_contains($controller, 'acquireCheckoutLock'), $label . ' checkout creation must hold an order/environment lock.');
@@ -82,6 +87,8 @@ contract(str_contains($wooClaims, 'INSERT IGNORE'), 'WooCommerce webhook claim m
 contract(str_contains($wooClaims, 'option_value = %s'), 'WooCommerce webhook recovery/finalization must use compare-and-set ownership.');
 contract(str_contains($wooWebhook, '->failed($claim)'), 'WooCommerce failed webhook processing must remain retryable.');
 contract(str_contains($wooWebhook, '->processed($claim)'), 'WooCommerce event must become processed only after order effects save.');
+contract(!str_contains($wooGateway, '(float)'), 'WooCommerce eligibility must not compare money using binary floats.');
+contract(str_contains($wooGateway, 'Decimal::compare'), 'WooCommerce eligibility must use exact decimal comparisons.');
 
 $magentoWebhook = source($root . '/plugins/magento2/Controller/Webhook/Index.php');
 $magentoCheckout = source($root . '/plugins/magento2/Controller/Checkout/Start.php');
@@ -101,6 +108,18 @@ contract(str_contains($magentoClaims, "'claim_token = ?'"), 'Magento claim trans
 contract(str_contains($magentoSchema, 'name="claim_key"') && str_contains($magentoSchema, 'referenceId="PRIMARY"'), 'Magento event claims must have a durable unique primary key.');
 contract(str_contains($magentoApiClient, "\$eventId . '.' . \$rawBody"), 'Magento API helper must verify signatures against the exact raw request body.');
 contract(!str_contains($magentoApiClient, "\$eventId . '.' . json_encode"), 'Magento API helper must not normalize JSON before webhook signature verification.');
+contract(!str_contains(source($root . '/plugins/magento2/Model/PaymentMethod.php'), '(float)'), 'Magento eligibility must not compare money using binary floats.');
+contract(!str_contains($magentoProcessor, '(float)'), 'Magento invoice eligibility must not inspect money using binary floats.');
+contract(str_contains(source($root . '/plugins/magento2/Model/PaymentMethod.php'), 'Decimal::compare'), 'Magento eligibility must use exact decimal comparisons.');
+
+foreach ([
+    'OpenCart 3' => $root . '/plugins/opencart3/upload/catalog/model/extension/payment/payxcommerce.php',
+    'OpenCart 4' => $root . '/plugins/opencart4/upload/extension/payxcommerce/catalog/model/payment/payxcommerce.php',
+] as $label => $path) {
+    $source = source($path);
+    contract(!str_contains($source, '(float)'), $label . ' eligibility must not compare money using binary floats.');
+    contract(str_contains($source, 'Decimal::compare'), $label . ' eligibility must use exact decimal comparisons.');
+}
 
 foreach ($eventContract['plugin_default_subscriptions'] as $eventType) {
     contract(str_contains($wooWebhook, $eventType) || str_contains(source($root . '/plugins/woocommerce/sdk/payxcommerce-php/src/Webhooks/EventTypes.php'), $eventType), 'WooCommerce must subscribe to/handle ' . $eventType . '.');

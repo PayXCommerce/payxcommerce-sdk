@@ -1,6 +1,8 @@
 <?php
 namespace Opencart\Catalog\Model\Extension\Payxcommerce\Payment;
 
+require_once DIR_EXTENSION . 'payxcommerce/system/library/payxcommerce_decimal.php';
+
 class Payxcommerce extends \Opencart\System\Engine\Model
 {
     public function getMethods(array $address = []): array
@@ -19,10 +21,20 @@ class Payxcommerce extends \Opencart\System\Engine\Model
             }
         }
 
-        $total = (float) ($this->cart ? $this->cart->getTotal() : 0);
-        $min_total = (float) $this->config->get('payment_payxcommerce_min_total');
-        $max_total = (float) $this->config->get('payment_payxcommerce_max_total');
-        if (($min_total > 0 && $total < $min_total) || ($max_total > 0 && $total > $max_total)) {
+        $total = (string) ($this->cart ? $this->cart->getTotal() : '0');
+        $min_total = (string) ($this->config->get('payment_payxcommerce_min_total') ?: '0');
+        $max_total = (string) ($this->config->get('payment_payxcommerce_max_total') ?: '0');
+        if (!\Opencart\System\Library\PayxcommerceDecimal::isValid($total)
+            || !\Opencart\System\Library\PayxcommerceDecimal::isValid($min_total)
+            || !\Opencart\System\Library\PayxcommerceDecimal::isValid($max_total)
+        ) {
+            return [];
+        }
+        if ((\Opencart\System\Library\PayxcommerceDecimal::isPositive($min_total)
+                && \Opencart\System\Library\PayxcommerceDecimal::compare($total, $min_total) === -1)
+            || (\Opencart\System\Library\PayxcommerceDecimal::isPositive($max_total)
+                && \Opencart\System\Library\PayxcommerceDecimal::compare($total, $max_total) === 1)
+        ) {
             return [];
         }
 
@@ -122,18 +134,49 @@ class Payxcommerce extends \Opencart\System\Engine\Model
         return 0;
     }
 
-    public function claimWebhookEvent(string $event_id, int $order_id, string $event_type, string $raw_body): bool
+    public function claimWebhookEvent(string $event_id, int $order_id, string $event_type, string $raw_body): ?string
     {
+        $this->ensureWebhookClaimSchema();
+        if (!$this->acquireWebhookEventLock($event_id)) {
+            return null;
+        }
+
         $payload_hash = hash('sha256', $raw_body);
+        $claim_token = bin2hex(random_bytes(16));
         $retryable = "((processing_status = 'failed' OR (processing_status = 'processing' AND created_at < DATE_SUB(NOW(), INTERVAL 5 MINUTE))) AND payload_hash = VALUES(payload_hash))";
-        $this->db->query("INSERT INTO `" . DB_PREFIX . "payxcommerce_webhook_event` SET event_id = '" . $this->db->escape($event_id) . "', order_id = '" . (int) $order_id . "', event_type = '" . $this->db->escape($event_type) . "', payload_hash = '" . $payload_hash . "', processing_status = 'processing', created_at = NOW() ON DUPLICATE KEY UPDATE order_id = IF(" . $retryable . ", VALUES(order_id), order_id), event_type = IF(" . $retryable . ", VALUES(event_type), event_type), error_message = IF(" . $retryable . ", NULL, error_message), processed_at = IF(" . $retryable . ", NULL, processed_at), created_at = IF(" . $retryable . ", NOW(), created_at), processing_status = IF(" . $retryable . ", 'processing', processing_status)");
+        try {
+            $this->db->query("INSERT INTO `" . DB_PREFIX . "payxcommerce_webhook_event` SET event_id = '" . $this->db->escape($event_id) . "', order_id = '" . (int) $order_id . "', event_type = '" . $this->db->escape($event_type) . "', payload_hash = '" . $payload_hash . "', claim_token = '" . $claim_token . "', processing_status = 'processing', created_at = NOW() ON DUPLICATE KEY UPDATE order_id = IF(" . $retryable . ", VALUES(order_id), order_id), event_type = IF(" . $retryable . ", VALUES(event_type), event_type), claim_token = IF(" . $retryable . ", VALUES(claim_token), claim_token), error_message = IF(" . $retryable . ", NULL, error_message), processed_at = IF(" . $retryable . ", NULL, processed_at), created_at = IF(" . $retryable . ", NOW(), created_at), processing_status = IF(" . $retryable . ", 'processing', processing_status)");
+        } catch (\Throwable $exception) {
+            $this->releaseWebhookEventLock($event_id);
+            throw $exception;
+        }
+
+        if ($this->db->countAffected() <= 0) {
+            $this->releaseWebhookEventLock($event_id);
+            return null;
+        }
+
+        return $claim_token;
+    }
+
+    public function renewWebhookEventClaim(string $event_id, string $claim_token): bool
+    {
+        $this->db->query("UPDATE `" . DB_PREFIX . "payxcommerce_webhook_event` SET created_at = NOW() WHERE event_id = '" . $this->db->escape($event_id) . "' AND claim_token = '" . $this->db->escape($claim_token) . "' AND processing_status = 'processing'");
+        $query = $this->db->query("SELECT event_id FROM `" . DB_PREFIX . "payxcommerce_webhook_event` WHERE event_id = '" . $this->db->escape($event_id) . "' AND claim_token = '" . $this->db->escape($claim_token) . "' AND processing_status = 'processing' LIMIT 1");
+
+        return (bool) $query->num_rows;
+    }
+
+    public function completeWebhookEvent(string $event_id, string $claim_token, string $status = 'processed', string $error = ''): bool
+    {
+        $this->db->query("UPDATE `" . DB_PREFIX . "payxcommerce_webhook_event` SET processing_status = '" . $this->db->escape($status) . "', error_message = '" . $this->db->escape($error) . "', processed_at = NOW() WHERE event_id = '" . $this->db->escape($event_id) . "' AND claim_token = '" . $this->db->escape($claim_token) . "' AND processing_status = 'processing'");
 
         return $this->db->countAffected() > 0;
     }
 
-    public function completeWebhookEvent(string $event_id, string $status = 'processed', string $error = ''): void
+    public function releaseWebhookEventLock(string $event_id): void
     {
-        $this->db->query("UPDATE `" . DB_PREFIX . "payxcommerce_webhook_event` SET processing_status = '" . $this->db->escape($status) . "', error_message = '" . $this->db->escape($error) . "', processed_at = NOW() WHERE event_id = '" . $this->db->escape($event_id) . "'");
+        $this->db->query("SELECT RELEASE_LOCK('" . $this->db->escape($this->webhookEventLockName($event_id)) . "')");
     }
 
     public function updatePayxOrder(int $order_id, array $payload): void
@@ -156,6 +199,26 @@ class Payxcommerce extends \Opencart\System\Engine\Model
                 $this->db->query("ALTER TABLE `" . DB_PREFIX . "payxcommerce_order` ADD `" . $column . "` " . $definition);
             }
         }
+    }
+
+    private function ensureWebhookClaimSchema(): void
+    {
+        $exists = $this->db->query("SHOW COLUMNS FROM `" . DB_PREFIX . "payxcommerce_webhook_event` LIKE 'claim_token'");
+        if (!$exists->num_rows) {
+            $this->db->query("ALTER TABLE `" . DB_PREFIX . "payxcommerce_webhook_event` ADD `claim_token` VARCHAR(64) DEFAULT NULL AFTER `payload_hash`");
+        }
+    }
+
+    private function acquireWebhookEventLock(string $event_id): bool
+    {
+        $query = $this->db->query("SELECT GET_LOCK('" . $this->db->escape($this->webhookEventLockName($event_id)) . "', 0) AS acquired");
+
+        return (int) ($query->row['acquired'] ?? 0) === 1;
+    }
+
+    private function webhookEventLockName(string $event_id): string
+    {
+        return 'payx_oc4_webhook_' . hash('sha256', $event_id);
     }
 
     private function payloadCandidates(array $payload, string $key): array

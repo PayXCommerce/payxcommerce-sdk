@@ -251,7 +251,7 @@ class Processor
 
         if ($order->canInvoice()) {
             $invoice = $this->invoiceService->prepareInvoice($order);
-            if ($invoice && (float) $invoice->getGrandTotal() > 0) {
+            if ($invoice && Decimal::isPositive((string) $invoice->getGrandTotal())) {
                 $invoice->setTransactionId($transactionReference);
                 $invoice->setRequestedCaptureCase(\Magento\Sales\Model\Order\Invoice::CAPTURE_OFFLINE);
                 $invoice->register();

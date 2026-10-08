@@ -120,6 +120,7 @@ class ControllerExtensionPaymentPayXCommerce extends Controller
             `order_id` INT(11) DEFAULT NULL,
             `event_type` VARCHAR(128) DEFAULT NULL,
             `payload_hash` VARCHAR(64) DEFAULT NULL,
+            `claim_token` VARCHAR(64) DEFAULT NULL,
             `processing_status` VARCHAR(32) DEFAULT NULL,
             `error_message` TEXT DEFAULT NULL,
             `created_at` DATETIME DEFAULT NULL,

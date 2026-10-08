@@ -8,6 +8,7 @@ use PayXCommerce\WooCommerce\Admin\Settings;
 use PayXCommerce\WooCommerce\Api\SdkFactory;
 use PayXCommerce\WooCommerce\Order\Metadata;
 use PayXCommerce\WooCommerce\Order\PayloadBuilder;
+use PayXCommerce\WooCommerce\Support\Decimal;
 use PayXCommerce\WooCommerce\Support\Logger;
 use PayXCommerce\WooCommerce\Webhook\Handler;
 use PayXCommerce\Exceptions\AuthException;
@@ -77,10 +78,10 @@ final class Gateway extends WC_Payment_Gateway
             return false;
         }
 
-        $total = WC()->cart ? (float) WC()->cart->get_total('edit') : 0.0;
-        $min = (float) $this->get_option('min_amount', '0');
-        $max = (float) $this->get_option('max_amount', '0');
-        if (($min > 0 && $total > 0 && $total < $min) || ($max > 0 && $total > $max)) {
+        $total = WC()->cart ? (string) WC()->cart->get_total('edit') : '0';
+        $min = (string) $this->get_option('min_amount', '0');
+        $max = (string) $this->get_option('max_amount', '0');
+        if (!$this->amountWithinLimits($total, $min, $max, true)) {
             return false;
         }
 
@@ -348,10 +349,25 @@ final class Gateway extends WC_Payment_Gateway
             return false;
         }
 
-        $total = (float) $order->get_total();
-        $min = (float) $this->get_option('min_amount', '0');
-        $max = (float) $this->get_option('max_amount', '0');
-        return !($min > 0 && $total < $min) && !($max > 0 && $total > $max);
+        $total = (string) $order->get_total();
+        $min = (string) $this->get_option('min_amount', '0');
+        $max = (string) $this->get_option('max_amount', '0');
+
+        return $this->amountWithinLimits($total, $min, $max);
+    }
+
+    private function amountWithinLimits(string $total, string $min, string $max, bool $deferMinimumForZero = false): bool
+    {
+        if (!Decimal::isValid($total) || !Decimal::isValid($min) || !Decimal::isValid($max)) {
+            return false;
+        }
+
+        $totalPositive = Decimal::isPositive($total);
+        if (Decimal::isPositive($min) && (!$deferMinimumForZero || $totalPositive) && Decimal::compare($total, $min) === -1) {
+            return false;
+        }
+
+        return !Decimal::isPositive($max) || Decimal::compare($total, $max) !== 1;
     }
 
     private function preservePassword(string $optionKey, mixed $value): string

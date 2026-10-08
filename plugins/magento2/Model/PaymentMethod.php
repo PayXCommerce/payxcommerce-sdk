@@ -54,11 +54,18 @@ class PaymentMethod extends AbstractMethod
             return false;
         }
 
-        $total = (float) $quote->getGrandTotal();
-        $min = (float) $this->getConfigData('min_order_total');
-        $max = (float) $this->getConfigData('max_order_total');
+        $total = (string) $quote->getGrandTotal();
+        $min = (string) ($this->getConfigData('min_order_total') ?: '0');
+        $max = (string) ($this->getConfigData('max_order_total') ?: '0');
+        if (!Decimal::isValid($total) || !Decimal::isValid($min) || !Decimal::isValid($max)) {
+            return false;
+        }
 
-        return !($min > 0 && $total < $min) && !($max > 0 && $total > $max);
+        if (Decimal::isPositive($min) && Decimal::compare($total, $min) === -1) {
+            return false;
+        }
+
+        return !Decimal::isPositive($max) || Decimal::compare($total, $max) !== 1;
     }
 
     private function csvConfig(string $key): array

@@ -20,6 +20,9 @@ php "$ROOT_DIR/tools/test/woocommerce-event-claims.php"
 php "$ROOT_DIR/tools/test/woocommerce-checkout-attempts.php"
 php "$ROOT_DIR/tools/test/magento-lifecycle.php"
 php "$ROOT_DIR/tools/test/opencart-library-contracts.php"
+php "$ROOT_DIR/tools/test/opencart3-event-claims.php"
+php "$ROOT_DIR/tools/test/opencart4-event-claims.php"
+php "$ROOT_DIR/tools/test/decimal-money.php"
 php "$ROOT_DIR/tools/test/plugin-contracts.php"
 if command -v xmllint >/dev/null 2>&1; then
   find "$ROOT_DIR/plugins" -name '*.xml' -print -exec xmllint --noout {} \;

@@ -188,38 +188,50 @@ class ControllerExtensionPaymentPayXCommerce extends Controller
             $payload['event_type'] = $event_type;
         }
         $order_id = $this->model_extension_payment_payxcommerce->findOrderId($payload);
-        if (!$this->model_extension_payment_payxcommerce->claimWebhookEvent($event_id, $order_id, $event_type, $raw_body)) {
+        $claim_token = $this->model_extension_payment_payxcommerce->claimWebhookEvent($event_id, $order_id, $event_type, $raw_body);
+        if ($claim_token === null) {
             $this->response->setOutput('Duplicate ignored');
             return;
         }
 
-        if ($order_id <= 0) {
-            $this->model_extension_payment_payxcommerce->completeWebhookEvent($event_id, 'accepted_order_missing');
-            $this->response->setOutput('Accepted');
-            return;
-        }
-
         try {
+            if ($order_id <= 0) {
+                if (!$this->model_extension_payment_payxcommerce->completeWebhookEvent($event_id, $claim_token, 'accepted_order_missing')) {
+                    throw new RuntimeException('Webhook event claim ownership was lost.');
+                }
+                $this->response->setOutput('Accepted');
+                return;
+            }
+
             $order = $this->model_checkout_order->getOrder($order_id);
             if (!$order) {
-                $this->model_extension_payment_payxcommerce->completeWebhookEvent($event_id, 'accepted_order_missing');
+                if (!$this->model_extension_payment_payxcommerce->completeWebhookEvent($event_id, $claim_token, 'accepted_order_missing')) {
+                    throw new RuntimeException('Webhook event claim ownership was lost.');
+                }
                 $this->response->setOutput('Accepted');
                 return;
             }
             if (in_array($event_type, ['payment.success', 'payment.succeeded'], true)) {
                 $this->assertSuccessfulPaymentMatchesOrder($order, $payload);
             }
+            if (!$this->model_extension_payment_payxcommerce->renewWebhookEventClaim($event_id, $claim_token)) {
+                throw new RuntimeException('Webhook event claim ownership was lost.');
+            }
             $this->model_extension_payment_payxcommerce->updatePayxOrder($order_id, $payload);
             $status_id = $this->statusForEvent($event_type);
             if ($status_id) {
                 $this->addOrderStatus($order_id, $status_id, $this->brandName() . ' webhook event: ' . $event_type . '.');
             }
-            $this->model_extension_payment_payxcommerce->completeWebhookEvent($event_id);
+            if (!$this->model_extension_payment_payxcommerce->completeWebhookEvent($event_id, $claim_token)) {
+                throw new RuntimeException('Webhook event claim could not be finalized.');
+            }
             $this->response->setOutput('OK');
         } catch (Throwable $exception) {
-            $this->model_extension_payment_payxcommerce->completeWebhookEvent($event_id, 'failed', $exception->getMessage());
+            $this->model_extension_payment_payxcommerce->completeWebhookEvent($event_id, $claim_token, 'failed', $exception->getMessage());
             $this->response->addHeader('HTTP/1.1 500 Internal Server Error');
             $this->response->setOutput('Processing failed');
+        } finally {
+            $this->model_extension_payment_payxcommerce->releaseWebhookEventLock($event_id);
         }
     }
 
