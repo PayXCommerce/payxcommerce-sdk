@@ -46,7 +46,8 @@
   "aliases": {
     "payment.succeeded": "payment.success",
     "payment.canceled": "payment.cancelled",
-    "refund.succeeded": "refund.success"
+    "refund.succeeded": "refund.success",
+    "merchant.account.updated": "account.status_changed"
   },
   "payment_request_default_subscriptions": [
     "payment.success",
@@ -60,6 +61,14 @@
     "refund.success",
     "payment.refunded",
     "chargeback.created",
-    "dispute.created"
+    "chargeback.updated",
+    "chargeback.closed",
+    "dispute.created",
+    "dispute.opened",
+    "dispute.updated",
+    "dispute.evidence_required",
+    "dispute.won",
+    "dispute.lost",
+    "dispute.closed"
   ]
 }

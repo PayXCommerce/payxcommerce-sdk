@@ -58,7 +58,41 @@ class Payxcommerce extends \Opencart\System\Engine\Model
 
     public function savePayxOrder(int $order_id, array $response, string $merchant_reference): void
     {
-        $this->db->query("INSERT INTO `" . DB_PREFIX . "payxcommerce_order` SET order_id = '" . (int) $order_id . "', payx_request_number = '" . $this->db->escape((string) ($response['request_number'] ?? '')) . "', payx_invoice_number = '" . $this->db->escape((string) ($response['invoice_number'] ?? '')) . "', merchant_reference = '" . $this->db->escape($merchant_reference) . "', checkout_url = '" . $this->db->escape((string) ($response['checkout_url'] ?? '')) . "', payment_status = 'created', created_at = NOW(), updated_at = NOW() ON DUPLICATE KEY UPDATE payx_request_number = VALUES(payx_request_number), payx_invoice_number = VALUES(payx_invoice_number), merchant_reference = VALUES(merchant_reference), checkout_url = VALUES(checkout_url), payment_status = VALUES(payment_status), updated_at = NOW()");
+        $this->ensureCheckoutAttemptSchema();
+        $expires_at = !empty($response['expires_at']) && strtotime((string) $response['expires_at']) ? strtotime((string) $response['expires_at']) : time() + 86400;
+        $expires_sql = "'" . $this->db->escape(date('Y-m-d H:i:s', $expires_at)) . "'";
+        $this->db->query("INSERT INTO `" . DB_PREFIX . "payxcommerce_order` SET order_id = '" . (int) $order_id . "', payx_request_number = '" . $this->db->escape((string) ($response['request_number'] ?? '')) . "', payx_invoice_number = '" . $this->db->escape((string) ($response['invoice_number'] ?? '')) . "', merchant_reference = '" . $this->db->escape($merchant_reference) . "', checkout_url = '" . $this->db->escape((string) ($response['checkout_url'] ?? '')) . "', checkout_state = 'pending', checkout_expires_at = " . $expires_sql . ", payment_status = 'created', created_at = NOW(), updated_at = NOW() ON DUPLICATE KEY UPDATE payx_request_number = VALUES(payx_request_number), payx_invoice_number = VALUES(payx_invoice_number), merchant_reference = VALUES(merchant_reference), checkout_url = VALUES(checkout_url), checkout_state = VALUES(checkout_state), checkout_expires_at = VALUES(checkout_expires_at), payment_status = VALUES(payment_status), updated_at = NOW()");
+    }
+
+    public function acquireCheckoutLock(int $order_id, string $environment): bool
+    {
+        $name = 'payx_oc4_checkout_' . hash('sha256', $order_id . '|' . $environment);
+        $query = $this->db->query("SELECT GET_LOCK('" . $this->db->escape($name) . "', 10) AS acquired");
+        return (int) ($query->row['acquired'] ?? 0) === 1;
+    }
+
+    public function releaseCheckoutLock(int $order_id, string $environment): void
+    {
+        $name = 'payx_oc4_checkout_' . hash('sha256', $order_id . '|' . $environment);
+        $this->db->query("SELECT RELEASE_LOCK('" . $this->db->escape($name) . "')");
+    }
+
+    public function prepareCheckoutAttempt(int $order_id, string $environment, string $fingerprint, string $merchant_reference): array
+    {
+        $this->ensureCheckoutAttemptSchema();
+        $query = $this->db->query("SELECT * FROM `" . DB_PREFIX . "payxcommerce_order` WHERE order_id = '" . (int) $order_id . "' LIMIT 1");
+        $row = $query->num_rows ? $query->row : [];
+        $expires_at = (string) ($row['checkout_expires_at'] ?? '');
+        $expired = $expires_at !== '' && (strtotime($expires_at) ?: 0) <= time();
+        $matches = hash_equals((string) ($row['checkout_fingerprint'] ?? ''), $fingerprint) && hash_equals((string) ($row['checkout_environment'] ?? ''), $environment);
+        if ($matches && !$expired && in_array((string) ($row['checkout_state'] ?? ''), ['creating', 'pending'], true)) {
+            return ['id' => (string) ($row['checkout_attempt_id'] ?? ''), 'key' => (string) ($row['checkout_attempt_key'] ?? ''), 'checkout_url' => (string) ($row['checkout_url'] ?? ''), 'reused' => true];
+        }
+
+        $attempt_id = bin2hex(random_bytes(16));
+        $key = 'opencart-4-order-' . $order_id . '-' . $environment . '-' . $attempt_id;
+        $this->db->query("INSERT INTO `" . DB_PREFIX . "payxcommerce_order` SET order_id = '" . (int) $order_id . "', merchant_reference = '" . $this->db->escape($merchant_reference) . "', checkout_attempt_id = '" . $attempt_id . "', checkout_attempt_key = '" . $this->db->escape($key) . "', checkout_fingerprint = '" . $this->db->escape($fingerprint) . "', checkout_environment = '" . $this->db->escape($environment) . "', checkout_state = 'creating', created_at = NOW(), updated_at = NOW() ON DUPLICATE KEY UPDATE payx_request_number = NULL, payx_invoice_number = NULL, payx_payment_id = NULL, payx_transaction_reference = NULL, merchant_reference = VALUES(merchant_reference), checkout_url = NULL, checkout_attempt_id = VALUES(checkout_attempt_id), checkout_attempt_key = VALUES(checkout_attempt_key), checkout_fingerprint = VALUES(checkout_fingerprint), checkout_environment = VALUES(checkout_environment), checkout_state = 'creating', checkout_expires_at = NULL, payment_status = 'creating', updated_at = NOW()");
+        return ['id' => $attempt_id, 'key' => $key, 'checkout_url' => '', 'reused' => false];
     }
 
     public function findOrderId(array $payload): int
@@ -109,7 +143,19 @@ class Payxcommerce extends \Opencart\System\Engine\Model
         $settlement_status = $this->firstPayloadValue($payload, ['settlement_status', 'data.settlement_status', 'payload.settlement_status', 'resource.settlement_status']);
         $event_type = (string) ($payload['event_type'] ?? '');
 
-        $this->db->query("UPDATE `" . DB_PREFIX . "payxcommerce_order` SET payx_payment_id = IF('" . $this->db->escape((string) $payment_id) . "' = '', payx_payment_id, '" . $this->db->escape((string) $payment_id) . "'), payx_transaction_reference = IF('" . $this->db->escape((string) $transaction_reference) . "' = '', payx_transaction_reference, '" . $this->db->escape((string) $transaction_reference) . "'), payment_status = IF('" . $this->db->escape($event_type) . "' = '', payment_status, '" . $this->db->escape($event_type) . "'), settlement_status = IF('" . $this->db->escape((string) $settlement_status) . "' = '', settlement_status, '" . $this->db->escape((string) $settlement_status) . "'), updated_at = NOW() WHERE order_id = '" . (int) $order_id . "'");
+        $terminal = in_array($event_type, ['payment.success', 'payment.succeeded', 'payment.failed', 'payment.cancelled', 'payment.canceled', 'payment.expired'], true);
+        $this->db->query("UPDATE `" . DB_PREFIX . "payxcommerce_order` SET payx_payment_id = IF('" . $this->db->escape((string) $payment_id) . "' = '', payx_payment_id, '" . $this->db->escape((string) $payment_id) . "'), payx_transaction_reference = IF('" . $this->db->escape((string) $transaction_reference) . "' = '', payx_transaction_reference, '" . $this->db->escape((string) $transaction_reference) . "'), payment_status = IF('" . $this->db->escape($event_type) . "' = '', payment_status, '" . $this->db->escape($event_type) . "'), checkout_state = " . ($terminal ? "'" . $this->db->escape($event_type) . "'" : 'checkout_state') . ", settlement_status = IF('" . $this->db->escape((string) $settlement_status) . "' = '', settlement_status, '" . $this->db->escape((string) $settlement_status) . "'), updated_at = NOW() WHERE order_id = '" . (int) $order_id . "'");
+    }
+
+    private function ensureCheckoutAttemptSchema(): void
+    {
+        $columns = ['checkout_attempt_id' => 'VARCHAR(64) DEFAULT NULL', 'checkout_attempt_key' => 'VARCHAR(191) DEFAULT NULL', 'checkout_fingerprint' => 'VARCHAR(64) DEFAULT NULL', 'checkout_environment' => 'VARCHAR(8) DEFAULT NULL', 'checkout_state' => 'VARCHAR(32) DEFAULT NULL', 'checkout_expires_at' => 'DATETIME DEFAULT NULL'];
+        foreach ($columns as $column => $definition) {
+            $exists = $this->db->query("SHOW COLUMNS FROM `" . DB_PREFIX . "payxcommerce_order` LIKE '" . $this->db->escape($column) . "'");
+            if (!$exists->num_rows) {
+                $this->db->query("ALTER TABLE `" . DB_PREFIX . "payxcommerce_order` ADD `" . $column . "` " . $definition);
+            }
+        }
     }
 
     private function payloadCandidates(array $payload, string $key): array

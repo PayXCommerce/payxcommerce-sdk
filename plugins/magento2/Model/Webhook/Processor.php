@@ -11,6 +11,7 @@ use Magento\Sales\Model\Order;
 use Magento\Sales\Model\Order\Payment\Transaction as PaymentTransaction;
 use Magento\Sales\Model\Service\InvoiceService;
 use PayXCommerce\Payment\Model\Config;
+use PayXCommerce\Payment\Model\CheckoutAttemptManager;
 
 class Processor
 {
@@ -19,45 +20,62 @@ class Processor
         private readonly Config $config,
         private readonly ResourceConnection $resourceConnection,
         private readonly InvoiceService $invoiceService,
-        private readonly DbTransaction $dbTransaction
+        private readonly DbTransaction $dbTransaction,
+        private readonly EventClaimStore $eventClaims,
+        private readonly CheckoutAttemptManager $checkoutAttempts
     ) {
     }
 
-    public function process(array $payload, string $eventId, int $storeId): string
+    public function process(array $payload, string $eventId, int $storeId, string $payloadHash): string
     {
         $order = $this->findBoundOrder($payload, $storeId);
         if (!$order || !$order->getEntityId()) {
             return 'Accepted; order not found';
         }
 
-        $payment = $order->getPayment();
-        if ($eventId !== '' && $payment->getAdditionalInformation('payxcommerce_event_' . $eventId)) {
+        $claim = $this->eventClaims->claim($eventId, (int) $order->getEntityId(), $storeId, $payloadHash);
+        if (($claim['status'] ?? '') === 'conflict') {
+            throw new \RuntimeException('Webhook event ID conflicts with a different payload.');
+        }
+        if (($claim['status'] ?? '') !== 'claimed') {
             return 'Duplicate ignored';
         }
 
-        foreach ([
+        try {
+            $payment = $order->getPayment();
+            foreach ([
             'request_number' => ['request_number', 'payment_request_id', 'payment_request_number', 'reference'],
             'invoice_number' => ['invoice_number'],
             'transaction_reference' => ['transaction_reference', 'gateway_transaction_id'],
             'payment_id' => ['payment_id'],
             'settlement_status' => ['settlement_status'],
-        ] as $infoKey => $paths) {
-            $value = $this->firstPayloadValue($payload, $paths);
-            if ($value !== '') {
-                $payment->setAdditionalInformation('payxcommerce_' . $infoKey, $value);
+            ] as $infoKey => $paths) {
+                $value = $this->firstPayloadValue($payload, $paths);
+                if ($value !== '') {
+                    $payment->setAdditionalInformation('payxcommerce_' . $infoKey, $value);
+                }
             }
-        }
 
-        if ($eventId !== '') {
-            $payment->setAdditionalInformation('payxcommerce_event_' . $eventId, date('c'));
-        }
+            if ($eventId !== '') {
+                $payment->setAdditionalInformation('payxcommerce_event_' . $eventId, date('c'));
+            }
 
-        $eventType = (string) ($payload['event_type'] ?? '');
-        if (in_array($eventType, ['payment.success', 'payment.succeeded'], true)) {
-            $this->assertSuccessfulPaymentMatchesOrder($order, $payload);
+            $eventType = (string) ($payload['event_type'] ?? '');
+            if (in_array($eventType, ['payment.success', 'payment.succeeded'], true)) {
+                $this->assertSuccessfulPaymentMatchesOrder($order, $payload);
+            }
+            $this->applyEvent($order, $eventType, $payload);
+            if (in_array($eventType, ['payment.success', 'payment.succeeded', 'payment.failed', 'payment.cancelled', 'payment.canceled', 'payment.expired'], true)) {
+                $this->checkoutAttempts->terminal($order, $eventType);
+            }
+            $this->orderRepository->save($order);
+            if (!$this->eventClaims->processed($claim)) {
+                throw new \RuntimeException('Webhook event claim could not be finalized.');
+            }
+        } catch (\Throwable $exception) {
+            $this->eventClaims->failed($claim, $exception->getMessage());
+            throw $exception;
         }
-        $this->applyEvent($order, $eventType, $payload);
-        $this->orderRepository->save($order);
 
         return 'OK';
     }
@@ -156,7 +174,10 @@ class Processor
             'payment.failed' => $this->config->value('failed_status', $storeId) ?: Order::STATE_CANCELED,
             'payment.cancelled', 'payment.canceled', 'payment.expired' => $this->config->value('cancelled_status', $storeId) ?: Order::STATE_CANCELED,
             'refund.success', 'refund.succeeded', 'payment.refunded' => $this->config->value('refunded_status', $storeId) ?: Order::STATE_CLOSED,
-            'chargeback.created', 'dispute.created' => $this->config->value('chargeback_status', $storeId) ?: Order::STATE_HOLDED,
+            'dispute.won' => $this->config->value('success_status', $storeId) ?: Order::STATE_PROCESSING,
+            'chargeback.created', 'chargeback.updated',
+            'dispute.created', 'dispute.opened', 'dispute.updated', 'dispute.evidence_required',
+            'dispute.lost' => $this->config->value('chargeback_status', $storeId) ?: Order::STATE_HOLDED,
             default => '',
         };
 

@@ -10,6 +10,7 @@ use Magento\Framework\Controller\Result\RedirectFactory;
 use Magento\Sales\Api\Data\OrderInterface;
 use Magento\Sales\Api\OrderRepositoryInterface;
 use PayXCommerce\Payment\Model\Api\Client;
+use PayXCommerce\Payment\Model\CheckoutAttemptManager;
 use PayXCommerce\Payment\Model\Config;
 use PayXCommerce\Payment\Model\Logger;
 use PayXCommerce\Payment\Model\PaymentRequestBuilder;
@@ -24,7 +25,8 @@ class Start implements HttpGetActionInterface
         private readonly Config $config,
         private readonly Logger $logger,
         private readonly PaymentRequestBuilder $paymentRequestBuilder,
-        private readonly ManagerInterface $messageManager
+        private readonly ManagerInterface $messageManager,
+        private readonly CheckoutAttemptManager $attempts
     ) {
     }
 
@@ -45,16 +47,30 @@ class Start implements HttpGetActionInterface
                 throw new \RuntimeException('Payment method is not fully configured.');
             }
 
-            $payload = $this->paymentRequestBuilder->build($order);
-            $response = $this->client->createPaymentRequest($payload, 'magento2-order-' . $order->getEntityId() . '-' . $this->config->environment($storeId), $storeId);
-            $payment = $order->getPayment();
-            $payment->setAdditionalInformation('payxcommerce_request_number', $response['request_number'] ?? '');
-            $payment->setAdditionalInformation('payxcommerce_invoice_number', $response['invoice_number'] ?? '');
-            $payment->setAdditionalInformation('payxcommerce_environment', $this->config->environment($storeId));
-            $checkoutUrl = $this->resolveCheckoutUrl($response);
-            $payment->setAdditionalInformation('payxcommerce_checkout_url', $checkoutUrl);
-            $order->addCommentToStatusHistory($this->config->brandName($storeId) . ' checkout created: ' . ($response['request_number'] ?? ''));
-            $this->orderRepository->save($order);
+            $environment = $this->config->environment($storeId);
+            $checkoutUrl = $this->attempts->withOrderLock((int) $order->getEntityId(), $environment, function () use ($order, $storeId, $environment): string {
+                $lockedOrder = $this->orderRepository->get((int) $order->getEntityId());
+                $payload = $this->paymentRequestBuilder->build($lockedOrder);
+                $attempt = $this->attempts->prepare($lockedOrder, $payload, $environment);
+                $this->orderRepository->save($lockedOrder);
+
+                if ((string) $attempt['checkout_url'] !== '') {
+                    return (string) $attempt['checkout_url'];
+                }
+
+                $response = $this->client->createPaymentRequest($payload, (string) $attempt['key'], $storeId);
+                $url = $this->resolveCheckoutUrl($response);
+                $payment = $lockedOrder->getPayment();
+                $payment->setAdditionalInformation('payxcommerce_request_number', $response['request_number'] ?? '');
+                $payment->setAdditionalInformation('payxcommerce_invoice_number', $response['invoice_number'] ?? '');
+                $payment->setAdditionalInformation('payxcommerce_environment', $environment);
+                $payment->setAdditionalInformation('payxcommerce_checkout_url', $url);
+                $this->attempts->completed($lockedOrder, $response);
+                $lockedOrder->addCommentToStatusHistory($this->config->brandName($storeId) . ' checkout created: ' . ($response['request_number'] ?? ''));
+                $this->orderRepository->save($lockedOrder);
+
+                return $url;
+            });
 
             return $result->setUrl($checkoutUrl);
         } catch (\RuntimeException $exception) {

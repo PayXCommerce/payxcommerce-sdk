@@ -85,7 +85,7 @@ class ControllerExtensionPaymentPayXCommerce extends Controller
             'failed_url' => $this->url->link('checkout/failure', '', true),
             'cancel_url' => $this->url->link('checkout/checkout', '', true),
             'webhook_url' => $this->url->link('extension/payment/payxcommerce/webhook', '', true),
-            'ipn_events' => ['payment.success', 'payment.failed', 'payment.cancelled', 'payment.expired', 'refund.success', 'payment.refunded', 'chargeback.created', 'dispute.created'],
+            'ipn_events' => ['payment.success', 'payment.failed', 'payment.cancelled', 'payment.expired', 'refund.success', 'payment.refunded', 'chargeback.created', 'chargeback.updated', 'chargeback.closed', 'dispute.created', 'dispute.opened', 'dispute.updated', 'dispute.evidence_required', 'dispute.won', 'dispute.lost', 'dispute.closed'],
             'metadata' => [
                 'platform' => 'opencart',
                 'platform_version' => '3',
@@ -98,27 +98,48 @@ class ControllerExtensionPaymentPayXCommerce extends Controller
             'is_test' => $this->config->get('payment_payxcommerce_environment') !== 'live',
         ];
 
+        $lock_acquired = false;
         try {
+            $environment = $this->config->get('payment_payxcommerce_environment') === 'live' ? 'live' : 'test';
+            $lock_acquired = $this->model_extension_payment_payxcommerce->acquireCheckoutLock($order_id, $environment);
+            if (!$lock_acquired) {
+                throw new RuntimeException('Another checkout attempt is already being prepared.');
+            }
+            $attempt = $this->model_extension_payment_payxcommerce->prepareCheckoutAttempt(
+                $order_id,
+                $environment,
+                hash('sha256', json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)),
+                $merchant_reference
+            );
+            if ((string) $attempt['checkout_url'] !== '') {
+                $this->response->redirect((string) $attempt['checkout_url']);
+                return;
+            }
+
             require_once DIR_SYSTEM . 'library/payxcommerce.php';
             $client = new PayXCommerce($this->settings());
             if (!$client->isConfigured()) {
                 throw new RuntimeException('Payment method is not fully configured.');
             }
-            $response = $client->createPaymentRequest($payload, 'opencart-3-order-' . $order_id);
+            $response = $client->createPaymentRequest($payload, (string) $attempt['key']);
             $checkout_url = (string) ($response['checkout_url'] ?? '');
+            if ($checkout_url === '') {
+                throw new RuntimeException('Hosted checkout URL was not returned.');
+            }
+
+            $this->model_extension_payment_payxcommerce->savePayxOrder($order_id, $response, $merchant_reference);
+            $this->addOrderStatus($order_id, $this->statusSetting('pending_status_id'), $this->brandName() . ' checkout created. Status: pending.');
+            $this->response->redirect($checkout_url);
+            return;
         } catch (Throwable $exception) {
             $this->debug('Create request failed: ' . $exception->getMessage());
-            $checkout_url = '';
-        }
-
-        if ($checkout_url === '') {
             $this->response->redirect($this->url->link('checkout/failure', '', true));
             return;
+        } finally {
+            if ($lock_acquired) {
+                $this->model_extension_payment_payxcommerce->releaseCheckoutLock($order_id, $environment);
+            }
         }
-
-        $this->model_extension_payment_payxcommerce->savePayxOrder($order_id, $response, $merchant_reference);
-        $this->addOrderStatus($order_id, $this->statusSetting('pending_status_id'), $this->brandName() . ' checkout created. Status: pending.');
-        $this->response->redirect($checkout_url);
     }
 
     public function success()
@@ -212,7 +233,10 @@ class ControllerExtensionPaymentPayXCommerce extends Controller
             'payment.cancelled', 'payment.canceled' => $this->statusSetting('cancelled_status_id'),
             'payment.expired' => $this->statusSetting('expired_status_id'),
             'refund.success', 'refund.succeeded', 'payment.refunded' => $this->statusSetting('refunded_status_id'),
-            'chargeback.created', 'dispute.created' => $this->statusSetting('chargeback_status_id'),
+            'dispute.won' => $this->statusSetting('success_status_id'),
+            'chargeback.created', 'chargeback.updated',
+            'dispute.created', 'dispute.opened', 'dispute.updated', 'dispute.evidence_required',
+            'dispute.lost' => $this->statusSetting('chargeback_status_id'),
             default => 0,
         };
     }

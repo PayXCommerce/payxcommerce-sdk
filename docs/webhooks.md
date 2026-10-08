@@ -48,7 +48,15 @@ Common event types:
 - `refund.rejected`
 - `payment.refunded`
 - `chargeback.created`
+- `chargeback.updated`
+- `chargeback.closed`
 - `dispute.created`
+- `dispute.opened`
+- `dispute.updated`
+- `dispute.evidence_required`
+- `dispute.won`
+- `dispute.lost`
+- `dispute.closed`
 - `customer.kyc.session_created`
 - `customer.kyc.approved`
 - `customer.kyc.declined`
@@ -61,6 +69,7 @@ Legacy aliases may still be received by older integrations:
 - `payment.canceled`
 - `payment.succeeded`
 - `refund.succeeded`
+- `merchant.account.updated` (use `account.status_changed` for new integrations)
 
 Request-specific `ipn_events` accepts only the documented event catalog. Omission defaults to `payment.success` and `payment.failed`; an explicit empty list disables the request-specific IPN channel without disabling the merchant-level webhook.
 

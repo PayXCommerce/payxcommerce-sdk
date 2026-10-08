@@ -26,7 +26,15 @@ def default_ipn_events() -> list[str]:
         "refund.success",
         "payment.refunded",
         "chargeback.created",
+        "chargeback.updated",
+        "chargeback.closed",
         "dispute.created",
+        "dispute.opened",
+        "dispute.updated",
+        "dispute.evidence_required",
+        "dispute.won",
+        "dispute.lost",
+        "dispute.closed",
     ]
 
 

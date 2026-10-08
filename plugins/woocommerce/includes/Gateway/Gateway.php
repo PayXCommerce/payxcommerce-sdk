@@ -206,88 +206,101 @@ final class Gateway extends WC_Payment_Gateway
             return ['result' => 'failure'];
         }
 
-        $currentEnvironment = (string) $this->get_option('environment', 'test');
-        $existingCheckout = (string) $order->get_meta(Metadata::CHECKOUT_URL);
-        $existingEnvironment = (string) $order->get_meta(Metadata::ENVIRONMENT);
-        if ($existingCheckout && !$order->is_paid() && $existingEnvironment === $currentEnvironment) {
-            return ['result' => 'success', 'redirect' => $existingCheckout];
-        }
-
         try {
-            $response = $this->createHostedCheckout($order);
+            $environment = (string) $this->get_option('environment', 'test');
+            return $this->metadata->withCheckoutLock((int) $order_id, $environment, function () use ($order_id, $environment): array {
+                $lockedOrder = wc_get_order($order_id);
+                if (!$lockedOrder instanceof WC_Order || $lockedOrder->is_paid()) {
+                    return ['result' => 'failure'];
+                }
+
+                $payload = $this->payloadBuilder->build($lockedOrder, WC()->api_request_url('payxcommerce'), $environment !== 'live');
+                $fingerprint = hash('sha256', wp_json_encode($payload));
+                $attempt = $this->metadata->prepareCheckoutAttempt($lockedOrder, $environment, $fingerprint);
+                $lockedOrder->save();
+
+                if ((string) $attempt['checkout_url'] !== '') {
+                    return ['result' => 'success', 'redirect' => esc_url_raw((string) $attempt['checkout_url'])];
+                }
+
+                $response = $this->createHostedCheckoutWithAuthRetry($payload, (string) $attempt['key']);
+                $checkoutUrl = esc_url_raw((string) ($response['checkout_url'] ?? ''));
+                if ($checkoutUrl === '') {
+                    throw new \RuntimeException('Hosted checkout URL was not returned.');
+                }
+
+                $this->metadata->saveCheckout($lockedOrder, $response, $environment);
+                $lockedOrder->save();
+                $lockedOrder->add_order_note(sprintf(__('%1$s checkout created: %2$s', 'payxcommerce-gateway'), $this->brandName(), sanitize_text_field((string) ($response['request_number'] ?? ''))));
+
+                return ['result' => 'success', 'redirect' => $checkoutUrl];
+            });
         } catch (\InvalidArgumentException $exception) {
             $this->logger->info('Create payment request failed: ' . $exception->getMessage());
             wc_add_notice(__('This payment method is not configured for the selected mode. Please contact store support.', 'payxcommerce-gateway'), 'error');
             return ['result' => 'failure'];
         } catch (AuthException $exception) {
-            if ($this->get_option('auth_method') === 'bearer') {
-                $this->sdk()->clearAccessTokenCache();
-                try {
-                    $response = $this->createHostedCheckout($order);
-                } catch (\Throwable $retryException) {
-                    $this->logger->info('Create payment request failed after token refresh: ' . $retryException->getMessage());
-                    wc_add_notice(__('Unable to start hosted checkout. Please try again.', 'payxcommerce-gateway'), 'error');
-                    return ['result' => 'failure'];
-                }
-            } else {
-                $this->logger->info('Create payment request failed: ' . $exception->getMessage());
-                wc_add_notice(__('Unable to start hosted checkout. Please try again.', 'payxcommerce-gateway'), 'error');
-                return ['result' => 'failure'];
-            }
+            $this->logger->info('Create payment request failed after authentication retry: ' . $exception->getMessage());
+            wc_add_notice(__('Unable to start hosted checkout. Please try again.', 'payxcommerce-gateway'), 'error');
+            return ['result' => 'failure'];
         } catch (\Throwable $exception) {
             $this->logger->info('Create payment request failed: ' . $exception->getMessage());
             wc_add_notice(__('Unable to start hosted checkout. Please try again.', 'payxcommerce-gateway'), 'error');
             return ['result' => 'failure'];
         }
 
-        $checkoutUrl = esc_url_raw((string) ($response['checkout_url'] ?? ''));
-        if ($checkoutUrl === '') {
-            wc_add_notice(__('Hosted checkout URL was not returned.', 'payxcommerce-gateway'), 'error');
-            return ['result' => 'failure'];
-        }
-
-        $this->metadata->saveCheckout($order, $response, $currentEnvironment);
-        $order->save();
-        $order->add_order_note(sprintf(__('%1$s checkout created: %2$s', 'payxcommerce-gateway'), $this->brandName(), sanitize_text_field((string) ($response['request_number'] ?? ''))));
-
-        return ['result' => 'success', 'redirect' => $checkoutUrl];
+        return ['result' => 'failure'];
     }
 
     public function process_refund($order_id, $amount = null, $reason = '')
     {
-        $order = wc_get_order($order_id);
-        if (!$order instanceof WC_Order) {
-            return new WP_Error('payxcommerce_order_missing', __('Unable to load WooCommerce order.', 'payxcommerce-gateway'));
-        }
-
-        $transactionReference = (string) $order->get_meta(Metadata::TRANSACTION_REFERENCE);
-        if ($transactionReference === '') {
-            return new WP_Error('payxcommerce_transaction_missing', __('Missing transaction reference.', 'payxcommerce-gateway'));
-        }
-
         $refundAmount = $amount !== null ? wc_format_decimal((string) $amount, wc_get_price_decimals()) : '';
-        $fingerprint = hash('sha256', $refundAmount . '|' . trim((string) $reason));
-        $metaKey = '_payxcommerce_refund_idempotency_' . $fingerprint;
-        $idempotencyKey = (string) $order->get_meta($metaKey);
-        if ($idempotencyKey === '') {
-            $idempotencyKey = 'woocommerce-refund-' . $order->get_id() . '-' . $fingerprint;
-            $order->update_meta_data($metaKey, $idempotencyKey);
-            $order->save();
-        }
+        $environment = (string) $this->get_option('environment', 'test');
 
         try {
-            $response = $this->sdk()->client()->refunds()->create([
-                'transaction_reference' => $transactionReference,
-                'amount' => $refundAmount !== '' ? $refundAmount : null,
-                'reason' => $reason ?: 'WooCommerce refund request',
-            ], $idempotencyKey);
+            return $this->metadata->withRefundLock((int) $order_id, $environment, function () use ($order_id, $refundAmount, $reason, $environment) {
+                $order = wc_get_order($order_id);
+                if (!$order instanceof WC_Order) {
+                    return new WP_Error('payxcommerce_order_missing', __('Unable to load WooCommerce order.', 'payxcommerce-gateway'));
+                }
+
+                $transactionReference = (string) $order->get_meta(Metadata::TRANSACTION_REFERENCE);
+                if ($transactionReference === '') {
+                    return new WP_Error('payxcommerce_transaction_missing', __('Missing transaction reference.', 'payxcommerce-gateway'));
+                }
+
+                $attempt = $this->metadata->prepareRefundAttempt($order, $refundAmount, (string) $reason, $environment);
+                $order->save();
+                if (!empty($attempt['completed'])) {
+                    return true;
+                }
+
+                try {
+                    $response = $this->sdk()->client()->refunds()->create([
+                        'transaction_reference' => $transactionReference,
+                        'amount' => $refundAmount !== '' ? $refundAmount : null,
+                        'reason' => $reason ?: 'WooCommerce refund request',
+                    ], (string) $attempt['key']);
+                } catch (\Throwable $exception) {
+                    // The request may have reached PayXCommerce even when the
+                    // response was lost. Persist uncertainty and retry the
+                    // exact same key instead of risking a duplicate refund.
+                    $this->metadata->markRefundAttempt($order, $attempt, 'uncertain');
+                    $order->save();
+                    throw $exception;
+                }
+
+                $refundReference = sanitize_text_field((string) ($response['refund_reference'] ?? 'pending'));
+                $this->metadata->markRefundAttempt($order, $attempt, 'succeeded', $refundReference);
+                $order->add_order_note(sprintf(__('Refund requested: %s', 'payxcommerce-gateway'), $refundReference));
+                $order->save();
+
+                return true;
+            });
         } catch (\Throwable $exception) {
             $this->logger->info('Refund request failed: ' . $exception->getMessage());
             return new WP_Error('payxcommerce_refund_failed', $exception->getMessage());
         }
-
-        $order->add_order_note(sprintf(__('Refund requested: %s', 'payxcommerce-gateway'), sanitize_text_field((string) ($response['refund_reference'] ?? 'pending'))));
-        return true;
     }
 
     public function handle_webhook(): void
@@ -300,12 +313,26 @@ final class Gateway extends WC_Payment_Gateway
         return new SdkFactory(fn(string $key, string $default = ''): string => (string) $this->get_option($key, $default));
     }
 
-    private function createHostedCheckout(WC_Order $order): array
+    private function createHostedCheckout(array $payload, string $idempotencyKey): array
     {
         return $this->sdk()->client()->paymentRequests()->create(
-            $this->payloadBuilder->build($order, WC()->api_request_url('payxcommerce'), $this->get_option('environment') !== 'live'),
-            'woocommerce-order-' . $order->get_id() . '-' . $this->get_option('environment', 'test')
+            $payload,
+            $idempotencyKey
         );
+    }
+
+    private function createHostedCheckoutWithAuthRetry(array $payload, string $idempotencyKey): array
+    {
+        try {
+            return $this->createHostedCheckout($payload, $idempotencyKey);
+        } catch (AuthException $exception) {
+            if ($this->get_option('auth_method') !== 'bearer') {
+                throw $exception;
+            }
+
+            $this->sdk()->clearAccessTokenCache();
+            return $this->createHostedCheckout($payload, $idempotencyKey);
+        }
     }
 
     private function orderSupported(WC_Order $order): bool

@@ -34,7 +34,7 @@ class PaymentRequestBuilder
             'failed_url' => $order->getStore()->getBaseUrl() . 'checkout/cart',
             'cancel_url' => $order->getStore()->getBaseUrl() . 'checkout/cart',
             'webhook_url' => $order->getStore()->getBaseUrl() . 'payxcommerce/webhook/index',
-            'ipn_events' => ['payment.success', 'payment.failed', 'payment.cancelled', 'payment.expired', 'refund.success', 'payment.refunded', 'chargeback.created', 'dispute.created'],
+            'ipn_events' => ['payment.success', 'payment.failed', 'payment.cancelled', 'payment.expired', 'refund.success', 'payment.refunded', 'chargeback.created', 'chargeback.updated', 'chargeback.closed', 'dispute.created', 'dispute.opened', 'dispute.updated', 'dispute.evidence_required', 'dispute.won', 'dispute.lost', 'dispute.closed'],
             'metadata' => [
                 'platform' => 'magento2',
                 'module_version' => Config::MODULE_VERSION,

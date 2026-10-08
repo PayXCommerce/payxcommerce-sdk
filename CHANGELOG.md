@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-08
+
+- Added durable atomic webhook claim lifecycles for WooCommerce and Magento with failed/stale recovery and owner-token compare-and-set transitions.
+- Added persisted, payload-bound checkout attempt lifecycles, bounded fallback expiry, and order/environment locks across WooCommerce, Magento, OpenCart 3, and OpenCart 4.
+- Added a persisted WooCommerce refund-attempt lifecycle that reuses the same key after transport uncertainty while allowing a new key for a distinct local refund.
+- Aligned plugin subscriptions and order handling with the dispute and chargeback events emitted by PayXCommerce, including restoring the normal successful status after `dispute.won`.
+- Made Magento app/code and Composer package builds version-driven and deterministic.
+
 ## 0.1.0 - Initial Integration Release
 
 - Added initial monorepo foundation.

@@ -16,6 +16,9 @@ if command -v node >/dev/null 2>&1; then
 fi
 find "$ROOT_DIR/plugins" -name '*.php' -print -exec php -l {} \;
 php "$ROOT_DIR/plugins/woocommerce/tests/webhook-handler-smoke.php"
+php "$ROOT_DIR/tools/test/woocommerce-event-claims.php"
+php "$ROOT_DIR/tools/test/woocommerce-checkout-attempts.php"
+php "$ROOT_DIR/tools/test/magento-lifecycle.php"
 php "$ROOT_DIR/tools/test/opencart-library-contracts.php"
 php "$ROOT_DIR/tools/test/plugin-contracts.php"
 if command -v xmllint >/dev/null 2>&1; then

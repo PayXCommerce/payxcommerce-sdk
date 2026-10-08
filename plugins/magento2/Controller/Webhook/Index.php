@@ -44,7 +44,7 @@ class Index implements HttpPostActionInterface, CsrfAwareActionInterface
         }
 
         try {
-            $message = $this->processor->process($payload, $eventId, $storeId);
+            $message = $this->processor->process($payload, $eventId, $storeId, hash('sha256', $rawBody));
             $code = str_starts_with($message, 'Accepted') ? 202 : 200;
             return $result->setHttpResponseCode($code)->setContents($message);
         } catch (\Throwable $exception) {

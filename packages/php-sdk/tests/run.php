@@ -61,7 +61,11 @@ $decoded = $verifier->verify($rawBody, [
 ]);
 assertSameValue(EventTypes::PAYMENT_SUCCEEDED, $decoded['event_type'], 'Webhook verifier should return decoded payload.');
 assertTrueValue(EventTypes::isSuccessfulPayment('payment.success'), 'Canonical successful payment event should be recognized.');
-assertSameValue(['payment.success', 'payment.failed', 'payment.cancelled', 'payment.expired', 'refund.success', 'payment.refunded', 'chargeback.created', 'dispute.created'], EventTypes::defaultSubscriptions(), 'Default webhook subscriptions should use canonical event names.');
+$eventContract = json_decode((string) file_get_contents(__DIR__ . '/../../../contracts/webhook-events.json'), true, 512, JSON_THROW_ON_ERROR);
+assertSameValue($eventContract['plugin_default_subscriptions'], EventTypes::defaultSubscriptions(), 'Default webhook subscriptions should match the authoritative contract.');
+assertTrueValue(EventTypes::isDisputeOrChargeback('dispute.opened'), 'Emitted dispute.opened must be handled as a dispute event.');
+assertTrueValue(EventTypes::isDisputeOrChargeback('dispute.won'), 'Emitted dispute.won must be handled as a dispute event.');
+assertTrueValue(EventTypes::isDisputeOrChargeback('dispute.lost'), 'Emitted dispute.lost must be handled as a dispute event.');
 $unicodeBody = "{\n  \"event_id\":\"{$eventId}\",\"customer\":\"José / 東京\",\"amount\":1.2300\n}";
 $unicodeExpected = hash_hmac('sha256', $eventId . '.' . $unicodeBody, 'webhook_secret');
 assertSameValue($unicodeExpected, Verifier::signature($eventId, $unicodeBody, 'webhook_secret'), 'Webhook signature must preserve exact raw JSON bytes.');

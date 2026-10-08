@@ -15,7 +15,8 @@ final class Handler
     public function __construct(
         private readonly string $webhookSecret,
         private readonly Metadata $metadata,
-        private readonly Logger $logger
+        private readonly Logger $logger,
+        private readonly ?EventClaimStore $eventClaims = null
     ) {
     }
 
@@ -46,17 +47,36 @@ final class Handler
         }
 
         $eventId = (string) ($payload['event_id'] ?? $headers['X-PXC-Event-ID']);
-        if ($this->metadata->hasEvent($order, $eventId)) {
-            status_header(200);
-            echo 'Duplicate event ignored';
+        $claimStore = $this->eventClaims ?? new EventClaimStore();
+        $claim = $claimStore->claim($order, $eventId, hash('sha256', $rawBody));
+        if (($claim['status'] ?? '') !== 'claimed') {
+            status_header(($claim['status'] ?? '') === 'conflict' ? 409 : 200);
+            echo ($claim['status'] ?? '') === 'conflict' ? 'Event ID conflict' : 'Duplicate event ignored';
             exit;
         }
 
-        $this->applyEvent($order, sanitize_text_field((string) ($payload['event_type'] ?? '')), $payload);
-        if ($eventId !== '') {
-            $this->metadata->markEvent($order, $eventId);
+        try {
+            $eventType = sanitize_text_field((string) ($payload['event_type'] ?? ''));
+            $this->applyEvent($order, $eventType, $payload);
+            if (EventTypes::isSuccessfulPayment($eventType)
+                || EventTypes::isFailedPayment($eventType)
+                || EventTypes::isCancelledPayment($eventType)) {
+                $this->metadata->markCheckoutAttemptTerminal($order, $eventType);
+            }
+            if ($eventId !== '') {
+                $this->metadata->markEvent($order, $eventId);
+            }
+            $order->save();
+            if (!$claimStore->processed($claim)) {
+                throw new \RuntimeException('Webhook event claim could not be finalized.');
+            }
+        } catch (\Throwable $exception) {
+            $claimStore->failed($claim);
+            $this->logger->info('Webhook processing failed: ' . $exception->getMessage());
+            status_header(500);
+            echo 'Processing failed';
+            exit;
         }
-        $order->save();
 
         status_header(200);
         echo 'OK';
@@ -166,6 +186,11 @@ final class Handler
             EventTypes::isFailedPayment($eventType) => $order->update_status('failed', __('Payment failed.', 'payxcommerce-gateway')),
             EventTypes::isCancelledPayment($eventType) => $order->update_status('cancelled', __('Payment cancelled or expired.', 'payxcommerce-gateway')),
             EventTypes::isRefundCompleted($eventType) => $order->add_order_note(__('Refund completed.', 'payxcommerce-gateway')),
+            $eventType === EventTypes::DISPUTE_WON => $order->update_status(
+                $order->needs_processing() ? 'processing' : 'completed',
+                __('Dispute resolved in the merchant’s favour.', 'payxcommerce-gateway')
+            ),
+            in_array($eventType, [EventTypes::DISPUTE_CLOSED, EventTypes::CHARGEBACK_CLOSED], true) => $order->add_order_note(__('Dispute or chargeback closed.', 'payxcommerce-gateway')),
             EventTypes::isDisputeOrChargeback($eventType) => $order->update_status('on-hold', __('Dispute or chargeback created.', 'payxcommerce-gateway')),
             default => $order->add_order_note(sprintf(__('Payment event received: %s', 'payxcommerce-gateway'), $eventType)),
         };

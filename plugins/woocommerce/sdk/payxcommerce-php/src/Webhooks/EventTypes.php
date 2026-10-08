@@ -49,6 +49,8 @@ final class EventTypes
     public const SETTLEMENT_FAILED = 'settlement.failed';
     public const BALANCE_UPDATED = 'balance.updated';
     public const ACCOUNT_STATUS_CHANGED = 'account.status_changed';
+    /** @deprecated Use account.status_changed. */
+    public const MERCHANT_ACCOUNT_UPDATED = 'merchant.account.updated';
     public const CUSTOMER_KYC_REQUIRED = 'customer.kyc.required';
     public const CUSTOMER_KYC_SESSION_CREATED = 'customer.kyc.session_created';
     public const CUSTOMER_KYC_APPROVED = 'customer.kyc.approved';
@@ -68,7 +70,15 @@ final class EventTypes
             self::REFUND_SUCCESS,
             self::PAYMENT_REFUNDED,
             self::CHARGEBACK_CREATED,
+            self::CHARGEBACK_UPDATED,
+            self::CHARGEBACK_CLOSED,
             self::DISPUTE_CREATED,
+            self::DISPUTE_OPENED,
+            self::DISPUTE_UPDATED,
+            self::DISPUTE_EVIDENCE_REQUIRED,
+            self::DISPUTE_WON,
+            self::DISPUTE_LOST,
+            self::DISPUTE_CLOSED,
         ];
     }
 
@@ -94,6 +104,10 @@ final class EventTypes
 
     public static function isDisputeOrChargeback(string $eventType): bool
     {
-        return in_array($eventType, [self::CHARGEBACK_CREATED, self::DISPUTE_CREATED], true);
+        return in_array($eventType, [
+            self::CHARGEBACK_CREATED, self::CHARGEBACK_UPDATED, self::CHARGEBACK_CLOSED,
+            self::DISPUTE_CREATED, self::DISPUTE_OPENED, self::DISPUTE_UPDATED,
+            self::DISPUTE_EVIDENCE_REQUIRED, self::DISPUTE_WON, self::DISPUTE_LOST, self::DISPUTE_CLOSED,
+        ], true);
     }
 }
