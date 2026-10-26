@@ -96,6 +96,8 @@ Webhook HMAC verification must use the exact raw HTTP request-body bytes. Do not
 
 ## Releases and checksums
 
+For platform-native plugin archives, run `php scripts/build-public-plugin-packages.php [output-directory] [source-commit-SHA]`. The builder reads committed plugin source, rejects unexpected files, and writes a versioned ZIP manifest with SHA-256 checksums. Review the generated archives before distributing them; this repository update does not publish package registries or replace website downloads.
+
 Public GitHub and package-registry publication are controlled release actions and are not implied by changes to the private development repository. Release operators must tag the reviewed commit, build artifacts with the scripts in `scripts/`, publish SHA-256 checksums, and verify the extracted artifact contents against that exact tag before publication.
 
 

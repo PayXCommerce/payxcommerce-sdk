@@ -41,6 +41,6 @@ final class Autoloader
                     }
                 }
             }
-        });
+        }, true, true);
     }
 }

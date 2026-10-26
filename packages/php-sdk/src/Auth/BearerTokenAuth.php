@@ -26,4 +26,3 @@ final class BearerTokenAuth implements AuthInterface
         return $headers;
     }
 }
-

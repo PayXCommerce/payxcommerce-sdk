@@ -40,4 +40,3 @@ final class HmacAuth implements AuthInterface
         return hash_hmac('sha256', $timestamp . '.' . $nonce . '.' . $body, $secretKey);
     }
 }
-

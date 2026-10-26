@@ -12,6 +12,8 @@ use PayXCommerce\WooCommerce\Support\Decimal;
 use PayXCommerce\WooCommerce\Support\Logger;
 use PayXCommerce\WooCommerce\Webhook\Handler;
 use PayXCommerce\Exceptions\AuthException;
+use PayXCommerce\Exceptions\ApiException;
+use PayXCommerce\Exceptions\RateLimitException;
 use WC_Order;
 use WC_Payment_Gateway;
 use WP_Error;
@@ -216,6 +218,7 @@ final class Gateway extends WC_Payment_Gateway
                 }
 
                 $payload = $this->payloadBuilder->build($lockedOrder, WC()->api_request_url('payxcommerce'), $environment !== 'live');
+                $payload = $this->metadata->preserveAttemptReturnUrls($lockedOrder, $payload);
                 $fingerprint = hash('sha256', wp_json_encode($payload));
                 $attempt = $this->metadata->prepareCheckoutAttempt($lockedOrder, $environment, $fingerprint);
                 $lockedOrder->save();
@@ -224,7 +227,20 @@ final class Gateway extends WC_Payment_Gateway
                     return ['result' => 'success', 'redirect' => esc_url_raw((string) $attempt['checkout_url'])];
                 }
 
-                $response = $this->createHostedCheckoutWithAuthRetry($payload, (string) $attempt['key']);
+                $retryAfter = max($this->sdk()->retryAfterSeconds(), (int) $lockedOrder->get_meta(Metadata::RETRY_AT) - time());
+                if ($retryAfter > 0) return $this->throttleNotice(min(300, $retryAfter));
+
+                try {
+                    $response = $this->createHostedCheckoutWithAuthRetry($payload, (string) $attempt['key']);
+                } catch (RateLimitException $exception) {
+                    $retryAfter = max(1, min(300, $exception->retryAfterSeconds() ?? 5));
+                    // Persist under the existing order lock before releasing it.
+                    // Keep the original attempt/key/link and order status.
+                    $lockedOrder->update_meta_data(Metadata::RETRY_AT, time() + $retryAfter);
+                    $lockedOrder->save();$this->sdk()->deferRequests($retryAfter);
+                    $this->logCheckoutFailure($lockedOrder, $exception, 'throttled', $retryAfter);
+                    return $this->throttleNotice($retryAfter);
+                }
                 $checkoutUrl = esc_url_raw((string) ($response['checkout_url'] ?? ''));
                 if ($checkoutUrl === '') {
                     throw new \RuntimeException('Hosted checkout URL was not returned.');
@@ -236,17 +252,28 @@ final class Gateway extends WC_Payment_Gateway
 
                 return ['result' => 'success', 'redirect' => $checkoutUrl];
             });
+        } catch (\DomainException $exception) {
+            $this->logCheckoutFailure($order, $exception, 'unresolved_order');
+            wc_add_notice(__('This order has an unresolved checkout. Please reopen its payment link or contact store support before changing the payment details.', 'payxcommerce-gateway'), 'error');
+            return ['result' => 'failure'];
         } catch (\InvalidArgumentException $exception) {
-            $this->logger->info('Create payment request failed: ' . $exception->getMessage());
+            $this->logCheckoutFailure($order, $exception, 'configuration');
             wc_add_notice(__('This payment method is not configured for the selected mode. Please contact store support.', 'payxcommerce-gateway'), 'error');
             return ['result' => 'failure'];
         } catch (AuthException $exception) {
-            $this->logger->info('Create payment request failed after authentication retry: ' . $exception->getMessage());
-            wc_add_notice(__('Unable to start hosted checkout. Please try again.', 'payxcommerce-gateway'), 'error');
+            $this->logCheckoutFailure($order, $exception, 'authentication');
+            wc_add_notice(__('Payment authorization is unavailable. Please contact store support.', 'payxcommerce-gateway'), 'error');
+            return ['result' => 'failure'];
+        } catch (ApiException $exception) {
+            $this->logCheckoutFailure($order, $exception, $exception->statusCode() === null || $exception->statusCode() >= 500 ? 'uncertain' : 'api_rejected');
+            $message = in_array($exception->statusCode(), [409,422], true)
+                ? __('The payment details could not be accepted. Please review this order with store support.', 'payxcommerce-gateway')
+                : __('Payment could not be confirmed. You may try this same order again shortly, or contact store support.', 'payxcommerce-gateway');
+            wc_add_notice($message, 'error');
             return ['result' => 'failure'];
         } catch (\Throwable $exception) {
-            $this->logger->info('Create payment request failed: ' . $exception->getMessage());
-            wc_add_notice(__('Unable to start hosted checkout. Please try again.', 'payxcommerce-gateway'), 'error');
+            $this->logCheckoutFailure($order, $exception, 'uncertain');
+            wc_add_notice(__('Payment could not be confirmed. Please contact store support if this continues.', 'payxcommerce-gateway'), 'error');
             return ['result' => 'failure'];
         }
 
@@ -327,12 +354,41 @@ final class Gateway extends WC_Payment_Gateway
         try {
             return $this->createHostedCheckout($payload, $idempotencyKey);
         } catch (AuthException $exception) {
-            if ($this->get_option('auth_method') !== 'bearer') {
+            if ($this->get_option('auth_method') !== 'bearer' || $exception->statusCode() !== 401) {
                 throw $exception;
             }
 
             $this->sdk()->clearAccessTokenCache();
             return $this->createHostedCheckout($payload, $idempotencyKey);
+        }
+    }
+
+    private function throttleNotice(int $seconds): array
+    {
+        wc_add_notice(sprintf(__('Payment service is busy. Please wait %d seconds, then try payment again.', 'payxcommerce-gateway'), $seconds), 'error');
+        return ['result'=>'failure','retry_after'=>$seconds];
+    }
+
+    private function logCheckoutFailure(WC_Order $order, \Throwable $exception, string $reason, int $retryAfter = 0): void
+    {
+        if ($this->get_option('debug') !== 'yes') return;
+        $headers = $exception instanceof ApiException ? $exception->responseHeaders() : [];
+        $status = $exception instanceof ApiException ? $exception->statusCode() : null;
+        $code = $exception instanceof ApiException ? $exception->payxErrorCode() : null;
+        if (!is_string($code) || !preg_match('/^[a-z_]{1,64}$/D', $code)) $code = null;
+        // No exception message/body, customer data or checkout bearer URL.
+        try {
+            $dedupe = 'payxcommerce_error_'.hash('sha256',$order->get_id().'|'.$reason.'|'.$status);
+            if (get_transient($dedupe)) return;
+            set_transient($dedupe,true,30);
+            $this->logger->info('Hosted checkout was not confirmed.', [
+            'utc'=>gmdate('c'),'order_id'=>$order->get_id(),'reason'=>$reason,
+            'status'=>$status,'error_code'=>$code,
+            'request_id'=>$headers['x-request-id'] ?? null,'error_group_id'=>$headers['x-error-group-id'] ?? null,
+            'retry_after'=>$retryAfter,
+            ]);
+        } catch (\Throwable $loggingFailure) {
+            error_log('PayXCommerce checkout diagnostic storage unavailable.');
         }
     }
 

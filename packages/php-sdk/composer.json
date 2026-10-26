@@ -1,5 +1,6 @@
 {
   "name": "payxcommerce/payxcommerce-php",
+  "version": "0.1.1",
   "description": "PHP SDK for PayXCommerce API v1 hosted checkout, refunds, balances, transactions, OAuth, and webhooks.",
   "type": "library",
   "license": "MIT",
@@ -24,4 +25,3 @@
     "test": "php tests/run.php"
   }
 }
-

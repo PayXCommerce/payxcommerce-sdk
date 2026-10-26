@@ -12,8 +12,13 @@ use PayXCommerce\Exceptions\ValidationException;
 
 final class CurlHttpClient implements HttpClientInterface
 {
-    public function __construct(private readonly Config $config)
+    private int $timeoutSeconds;
+
+    public function __construct(Config|int $config)
     {
+        // Integer form lets existing PHP8.0 CMS adapters reuse only this
+        // transport, without importing PHP8.1-only SDK configuration/auth.
+        $this->timeoutSeconds = is_int($config) ? max(1,$config) : $config->timeoutSeconds;
     }
 
     public function send(string $method, string $url, array $headers = [], string $body = ''): array
@@ -28,12 +33,28 @@ final class CurlHttpClient implements HttpClientInterface
             $headerLines[] = $name . ': ' . $value;
         }
 
+        $responseHeaders = [];
         curl_setopt_array($curl, [
             CURLOPT_CUSTOMREQUEST => strtoupper($method),
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_HTTPHEADER => $headerLines,
-            CURLOPT_TIMEOUT => $this->config->timeoutSeconds,
-            CURLOPT_HEADER => true,
+            CURLOPT_TIMEOUT => $this->timeoutSeconds,
+            CURLOPT_HEADERFUNCTION => static function ($handle, string $line) use (&$responseHeaders): int {
+                // Discard interim/proxy blocks; only the final response counts.
+                if (preg_match('~^HTTP/\S+\s+\d{3}\b~i', $line)) $responseHeaders = [];
+                elseif (str_contains($line, ':')) {
+                    [$name, $value] = explode(':', $line, 2);
+                    $name = strtolower(trim($name));
+                    // Store only the allowlist, not raw response headers.
+                    if (in_array($name, ResponseMetadata::HEADER_NAMES, true)) {
+                        $safe = ResponseMetadata::headers([$name => trim($value)]);
+                        // Duplicate metadata is ambiguous, including an invalid
+                        // first value. Do not retain arbitrary header names.
+                        $responseHeaders[$name] = array_key_exists($name, $responseHeaders) ? null : ($safe[$name] ?? null);
+                    }
+                }
+                return strlen($line);
+            },
         ]);
 
         if ($body !== '') {
@@ -42,43 +63,53 @@ final class CurlHttpClient implements HttpClientInterface
 
         $raw = curl_exec($curl);
         if ($raw === false) {
-            $message = curl_error($curl) ?: 'PayXCommerce API request failed.';
             curl_close($curl);
-            throw new ApiException($message);
+            throw new ApiException('PayXCommerce API transport failed; the operation outcome may be unknown.');
         }
 
         $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
-        $headerSize = (int) curl_getinfo($curl, CURLINFO_HEADER_SIZE);
         curl_close($curl);
 
-        $responseBody = substr($raw, $headerSize);
+        $responseBody = $raw;
         $decoded = $responseBody === '' ? [] : json_decode($responseBody, true);
         if (!is_array($decoded)) {
             $decoded = ['raw_body' => $responseBody];
         }
 
-        if ($status >= 400) {
-            $this->throwForStatus($status, $decoded, $responseBody);
+        if ($status >= 300) {
+            $this->throwForStatus($status, $decoded, $responseBody, $responseHeaders);
         }
 
         return $decoded;
     }
 
-    private function throwForStatus(int $status, array $decoded, string $rawBody): never
+    private function throwForStatus(int $status, array $decoded, string $rawBody, array $headers = []): void
     {
         $errors = isset($decoded['errors']) && is_array($decoded['errors']) ? $decoded['errors'] : [];
-        $message = $this->messageWithErrors((string) ($decoded['message'] ?? $decoded['error'] ?? 'PayXCommerce API error.'), $errors);
-        $code = isset($decoded['error_code']) ? (string) $decoded['error_code'] : null;
+        $text = $decoded['message'] ?? $decoded['error'] ?? null;
+        $message = $this->messageWithErrors(is_string($text) ? $text : 'PayXCommerce API error.', $errors);
+        $code = $decoded['error_code'] ?? null;
+        if (!is_string($code) || !preg_match('/^[a-z][a-z0-9_]{0,63}$/D', $code)) $code = null;
+        if ($status === 429) $message = 'Payment service is busy. Please retry after the indicated delay.';
+        elseif ($status >= 500) $message = 'Payment service is unavailable; the operation outcome may be unknown.';
+        elseif ($status < 400) $message = 'PayXCommerce API redirect was not followed.';
 
-        $exception = match ($code) {
-            'authentication_failed', 'signature_invalid', 'timestamp_expired', 'nonce_reused' => new AuthException($message, $status, $code, $rawBody, $errors),
-            'validation_failed', 'currency_not_supported', 'amount_out_of_range' => new ValidationException($message, $status, $code, $rawBody, $errors),
-            'rate_limit_exceeded' => new RateLimitException($message, $status, $code, $rawBody, $errors),
+        if ($status >= 500) throw new ApiException($message,$status,$code,$rawBody,$errors,$headers);
+
+        $exception = match ($status) {
+            429 => new RateLimitException($message, $status, $code, $rawBody, $errors, $headers),
+            401, 403 => new AuthException($message, $status, $code, $rawBody, $errors, $headers),
+            422 => new ValidationException($message, $status, $code, $rawBody, $errors, $headers),
+            default => match ($code) {
+            'authentication_failed', 'signature_invalid', 'timestamp_expired', 'nonce_reused' => new AuthException($message, $status, $code, $rawBody, $errors, $headers),
+            'validation_failed', 'currency_not_supported', 'amount_out_of_range' => new ValidationException($message, $status, $code, $rawBody, $errors, $headers),
+            'rate_limit_exceeded' => new RateLimitException($message, $status, $code, $rawBody, $errors, $headers),
             default => match ($status) {
-                401, 403 => new AuthException($message, $status, $code, $rawBody, $errors),
-                422 => new ValidationException($message, $status, $code, $rawBody, $errors),
-                429 => new RateLimitException($message, $status, $code, $rawBody, $errors),
-                default => new ApiException($message, $status, $code, $rawBody, $errors),
+                401, 403 => new AuthException($message, $status, $code, $rawBody, $errors, $headers),
+                422 => new ValidationException($message, $status, $code, $rawBody, $errors, $headers),
+                429 => new RateLimitException($message, $status, $code, $rawBody, $errors, $headers),
+                default => new ApiException($message, $status, $code, $rawBody, $errors, $headers),
+            },
             },
         };
 
@@ -90,7 +121,8 @@ final class CurlHttpClient implements HttpClientInterface
         $details = [];
         foreach ($errors as $field => $fieldErrors) {
             foreach ((array) $fieldErrors as $fieldError) {
-                $fieldError = trim((string) $fieldError);
+                if (!is_scalar($fieldError)) continue;
+                $fieldError = substr(trim((string) $fieldError),0,256);
                 if ($fieldError !== '') {
                     $details[] = $field . ': ' . $fieldError;
                 }

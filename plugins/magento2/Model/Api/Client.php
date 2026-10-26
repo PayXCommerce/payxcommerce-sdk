@@ -6,6 +6,8 @@ namespace PayXCommerce\Payment\Model\Api;
 use PayXCommerce\Payment\Model\Config;
 use PayXCommerce\Payment\Model\Logger;
 
+require_once __DIR__.'/sdk/autoload.php';
+
 class Client
 {
     private array $bearerTokens = [];
@@ -48,26 +50,18 @@ class Client
             $headers[] = 'X-PXC-Signature: ' . hash_hmac('sha256', $timestamp . '.' . $nonce . '.' . $body, $this->config->secret('secret_key', $storeId));
         }
 
-        $curl = curl_init(rtrim($this->config->value('base_url', $storeId), '/') . '/' . ltrim($path, '/'));
-        curl_setopt_array($curl, [CURLOPT_CUSTOMREQUEST => $method, CURLOPT_RETURNTRANSFER => true, CURLOPT_HTTPHEADER => $headers, CURLOPT_TIMEOUT => 30]);
-        if ($body !== '') {
-            curl_setopt($curl, CURLOPT_POSTFIELDS, $body);
+        $mapped=[];
+        foreach($headers as$header){[$name,$value]=explode(':',$header,2);$mapped[$name]=trim($value);}
+        $baseUrl=rtrim($this->config->value('base_url',$storeId),'/');
+        try {
+            return (new \PayXCommerce\Http\CurlHttpClient(new \PayXCommerce\Config(baseUrl:$baseUrl)))
+                ->send($method,$baseUrl.'/'.ltrim($path,'/'),$mapped,$body);
+        } catch (\PayXCommerce\Exceptions\ApiException $exception) {
+            $metadata=$exception->responseHeaders();
+            $this->logger->error('API request was not confirmed.', ['status'=>$exception->statusCode(),
+                'path'=>$path,'request_id'=>$metadata['x-request-id']??null,'retry_after'=>$exception->retryAfterSeconds()]);
+            throw $exception;
         }
-        $responseBody = curl_exec($curl);
-        $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
-        $error = curl_error($curl);
-        curl_close($curl);
-
-        if ($responseBody === false) {
-            throw new \RuntimeException($error ?: 'PayXCommerce API request failed.');
-        }
-        $decoded = json_decode((string) $responseBody, true);
-        if ($status >= 400) {
-            $message = (string) ($decoded['message'] ?? $decoded['error'] ?? 'PayXCommerce API error.');
-            $this->logger->error('API request failed: ' . $message, ['status' => $status, 'path' => $path]);
-            throw new \RuntimeException($message);
-        }
-        return is_array($decoded) ? $decoded : [];
     }
 
     public function validateCredentials(?int $storeId = null): bool

@@ -14,4 +14,3 @@ interface AuthInterface
      */
     public function headers(string $method, string $path, string $body, array $headers, Config $config): array;
 }
-

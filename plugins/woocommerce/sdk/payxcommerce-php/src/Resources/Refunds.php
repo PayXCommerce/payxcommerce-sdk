@@ -18,4 +18,3 @@ final class Refunds
         return $this->client->request('POST', '/refunds', $payload, $headers);
     }
 }
-

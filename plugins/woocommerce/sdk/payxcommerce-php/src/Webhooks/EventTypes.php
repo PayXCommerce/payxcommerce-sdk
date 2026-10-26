@@ -42,11 +42,11 @@ final class EventTypes
     public const DISPUTE_WON = 'dispute.won';
     public const DISPUTE_LOST = 'dispute.lost';
     public const DISPUTE_CLOSED = 'dispute.closed';
-    public const TRANSACTION_CREATED = 'transaction.created';
     public const SETTLEMENT_CREATED = 'settlement.created';
     public const SETTLEMENT_APPROVED = 'settlement.approved';
     public const SETTLEMENT_PAID = 'settlement.paid';
     public const SETTLEMENT_FAILED = 'settlement.failed';
+    public const TRANSACTION_CREATED = 'transaction.created';
     public const BALANCE_UPDATED = 'balance.updated';
     public const ACCOUNT_STATUS_CHANGED = 'account.status_changed';
     /** @deprecated Use account.status_changed. */

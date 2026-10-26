@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-26 — SDK 0.1.1 and plugin updates
+
+- PHP, Node.js, and Python SDKs now expose a bounded, allowlisted `Retry-After` response hint for explicit retry decisions. They do not automatically retry financial requests.
+- WooCommerce 0.3.10 preserves checkout return URLs and the original idempotency key across recoverable guest-session and throttling flows.
+- Magento 2 0.3.11 and OpenCart 3/4 0.3.15 use the synchronized PHP SDK transport and preserve safe throttling metadata.
+- Updated plugin package build tooling creates platform-native installer layouts and verifies package contents against committed source.
+
 ## 2026-10-08
 
 - Kept every MySQL advisory lock identifier within the 64-byte platform limit across OpenCart webhook/checkout, WooCommerce checkout/refund, and Magento checkout paths, with executable acquire/release contracts.

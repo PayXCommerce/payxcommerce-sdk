@@ -17,4 +17,3 @@ final class Balance
         return $this->client->request('GET', '/balance');
     }
 }
-

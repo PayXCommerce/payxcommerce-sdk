@@ -20,6 +20,9 @@ final class Metadata
     public const ATTEMPT_FINGERPRINT = '_payxcommerce_checkout_attempt_fingerprint';
     public const ATTEMPT_STATE = '_payxcommerce_checkout_attempt_state';
     public const ATTEMPT_EXPIRES_AT = '_payxcommerce_checkout_attempt_expires_at';
+    public const ATTEMPT_STARTED_AT = '_payxcommerce_checkout_attempt_started_at';
+    public const RETRY_AT = '_payxcommerce_retry_at';
+    public const ATTEMPT_RETURN_URLS = '_payxcommerce_checkout_return_urls';
     private const REFUND_ATTEMPT_PREFIX = '_payxcommerce_refund_attempt_';
     private const REFUND_ACTIVE_PREFIX = '_payxcommerce_refund_active_';
 
@@ -38,15 +41,44 @@ final class Metadata
         $order->update_meta_data(self::ATTEMPT_EXPIRES_AT, sanitize_text_field($expiresAt));
     }
 
+    public function preserveAttemptReturnUrls(WC_Order $order, array $payload): array
+    {
+        // WooCommerce cancel URLs contain a session-specific nonce. A new guest
+        // session must not change an unresolved API operation's signed body.
+        $fields = ['success_url', 'failed_url', 'cancel_url'];
+        $saved = $order->get_meta(self::ATTEMPT_RETURN_URLS);
+        if (in_array((string) $order->get_meta(self::ATTEMPT_STATE), ['creating', 'pending'], true)
+            && is_array($saved) && count($saved) === count($fields)) {
+            foreach ($fields as $field) {
+                if (!isset($saved[$field]) || !is_string($saved[$field])) throw new \DomainException('Invalid persisted checkout return URLs.');
+                $payload[$field] = $saved[$field];
+            }
+        } else {
+            $order->update_meta_data(self::ATTEMPT_RETURN_URLS, array_intersect_key($payload, array_flip($fields)));
+        }
+        return $payload;
+    }
+
     public function prepareCheckoutAttempt(WC_Order $order, string $environment, string $fingerprint): array
     {
         $state = (string) $order->get_meta(self::ATTEMPT_STATE);
-        $expiresAt = (string) $order->get_meta(self::ATTEMPT_EXPIRES_AT);
-        $expired = $expiresAt !== '' && (strtotime($expiresAt) ?: 0) <= time();
         $matches = hash_equals((string) $order->get_meta(self::ATTEMPT_FINGERPRINT), $fingerprint)
             && hash_equals((string) $order->get_meta(self::ENVIRONMENT), $environment);
 
-        if ($matches && !$expired && in_array($state, ['creating', 'pending'], true)) {
+        if ($state === '' && (string) $order->get_meta(self::CHECKOUT_URL) !== '') {
+            if ((string) $order->get_meta(self::ENVIRONMENT) !== $environment) throw new \DomainException('Existing checkout mode differs.');
+            return ['id'=>'','key'=>'','checkout_url'=>(string)$order->get_meta(self::CHECKOUT_URL),'reused'=>true];
+        }
+
+        if (in_array($state, ['creating', 'pending'], true)) {
+            // Local expiry, a lost response or a changed payload is not proof
+            // that a prior financial operation can be replaced with a new key.
+            if (!$matches) throw new \DomainException('An unresolved checkout has different order details or mode.');
+            $checkoutUrl = (string) $order->get_meta(self::CHECKOUT_URL);
+            $started = (int) $order->get_meta(self::ATTEMPT_STARTED_AT);
+            if ($checkoutUrl === '' && (!$started || $started < time() - 23 * HOUR_IN_SECONDS || (string)$order->get_meta(self::ATTEMPT_KEY) === '')) {
+                throw new \DomainException('Unresolved checkout is outside the safe idempotency retry window.');
+            }
             return [
                 'id' => (string) $order->get_meta(self::ATTEMPT_ID),
                 'key' => (string) $order->get_meta(self::ATTEMPT_KEY),
@@ -62,6 +94,8 @@ final class Metadata
         $order->update_meta_data(self::ATTEMPT_FINGERPRINT, $fingerprint);
         $order->update_meta_data(self::ATTEMPT_STATE, 'creating');
         $order->update_meta_data(self::ATTEMPT_EXPIRES_AT, '');
+        $order->update_meta_data(self::ATTEMPT_STARTED_AT, time());
+        $order->update_meta_data(self::RETRY_AT, 0);
         $order->update_meta_data(self::CHECKOUT_URL, '');
         $order->update_meta_data(self::ENVIRONMENT, $environment);
 

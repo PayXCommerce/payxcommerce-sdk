@@ -17,4 +17,3 @@ final class Transactions
         return $this->client->request('GET', '/transactions/' . rawurlencode($transactionReference));
     }
 }
-

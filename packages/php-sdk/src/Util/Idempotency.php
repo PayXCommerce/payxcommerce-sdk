@@ -11,4 +11,3 @@ final class Idempotency
         return $prefix . '_' . bin2hex(random_bytes(16));
     }
 }
-

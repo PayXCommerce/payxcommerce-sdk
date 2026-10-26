@@ -5,7 +5,7 @@
   "license": "MIT",
   "require": {
     "php": ">=8.1",
-    "payxcommerce/payxcommerce-php": "^0.1"
+    "payxcommerce/payxcommerce-php": "^0.1.1"
   },
   "autoload": {
     "psr-4": {

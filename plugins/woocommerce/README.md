@@ -40,13 +40,15 @@ assets/                         Admin and checkout assets
 
 ## Installation
 
-1. Upload the `plugins/woocommerce` directory as a WordPress plugin.
+1. Upload the public distribution ZIP through Plugins → Add New Plugin → Upload Plugin. Its root is `payxcommerce/` with `payxcommerce-gateway.php` inside, not `woocommerce/`. For source installation, copy this directory to `wp-content/plugins/payxcommerce/`.
 2. If installing from source, keep the bundled `sdk/payxcommerce-php/src` directory in place, or run Composer in the plugin directory.
 3. Activate the plugin in WordPress Admin.
 4. Go to WooCommerce → Settings → Payments → PayXCommerce.
 5. Enter API credentials and webhook secret.
 6. Copy the webhook URL into PayXCommerce merchant settings as a fallback endpoint.
 7. Run a test order.
+
+When replacing an older `payxcommerce-gateway/` installation, back up settings and deactivate the old plugin before removing its old files and activating the new `payxcommerce/` installation. Never activate both folders. Gateway settings retain the same option keys; do not delete saved settings as part of changing the folder.
 
 ## SDK Loading
 

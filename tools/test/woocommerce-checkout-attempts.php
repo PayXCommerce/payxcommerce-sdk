@@ -97,6 +97,7 @@ function wp_json_encode(mixed $value): string
 if (!defined('DAY_IN_SECONDS')) {
     define('DAY_IN_SECONDS', 86400);
 }
+if (!defined('HOUR_IN_SECONDS')) define('HOUR_IN_SECONDS',3600);
 
 function attemptAssert(bool $condition, string $message): void
 {
@@ -112,7 +113,12 @@ use PayXCommerce\WooCommerce\Order\Metadata;
 $metadata = new Metadata();
 $wpdb = new FakeWpdb();
 $order = new WC_Order(77);
+$originalUrls=['success_url'=>'https://store.test/received','failed_url'=>'https://store.test/cancel?_wpnonce=first','cancel_url'=>'https://store.test/cancel?_wpnonce=first','amount'=>'1.00'];
+$metadata->preserveAttemptReturnUrls($order,$originalUrls);
 $first = $metadata->prepareCheckoutAttempt($order, 'test', 'fingerprint-a');
+$newSession=array_merge($originalUrls,['cancel_url'=>'https://store.test/cancel?_wpnonce=second','failed_url'=>'https://store.test/cancel?_wpnonce=second','amount'=>'2.00']);
+$stable=$metadata->preserveAttemptReturnUrls($order,$newSession);
+attemptAssert($stable['cancel_url']===$originalUrls['cancel_url']&&$stable['failed_url']===$originalUrls['failed_url']&&$stable['amount']==='2.00','Retain original session URLs, never hide changed monetary fields.');
 attemptAssert(!$first['reused'] && $first['key'] !== '', 'First checkout must persist a new stable attempt key.');
 
 $timeoutRetry = $metadata->prepareCheckoutAttempt($order, 'test', 'fingerprint-a');
@@ -122,16 +128,23 @@ $metadata->saveCheckout($order, ['request_number' => 'PXRQ-1', 'checkout_url' =>
 $pendingRetry = $metadata->prepareCheckoutAttempt($order, 'test', 'fingerprint-a');
 attemptAssert($pendingRetry['key'] === $first['key'] && $pendingRetry['checkout_url'] === 'https://checkout.test/1', 'Outstanding request must reuse its checkout URL.');
 
-$changedPayload = $metadata->prepareCheckoutAttempt($order, 'test', 'fingerprint-b');
-attemptAssert(!$changedPayload['reused'] && $changedPayload['key'] !== $first['key'], 'Changed order payload must create an explicit new attempt.');
+try {$metadata->prepareCheckoutAttempt($order, 'test', 'fingerprint-b');throw new RuntimeException('Changed unresolved payload was accepted');}
+catch(DomainException $exception){attemptAssert($order->get_meta(Metadata::ATTEMPT_KEY)===$first['key'],'Changed unresolved payload must preserve its key.');}
 
 $metadata->markCheckoutAttemptTerminal($order, 'payment.expired');
+$freshUrls=$metadata->preserveAttemptReturnUrls($order,$newSession);
+attemptAssert($freshUrls['cancel_url']===$newSession['cancel_url'],'Verified terminal event permits fresh return URLs for new attempt.');
 $afterExpiryEvent = $metadata->prepareCheckoutAttempt($order, 'test', 'fingerprint-b');
-attemptAssert(!$afterExpiryEvent['reused'] && $afterExpiryEvent['key'] !== $changedPayload['key'], 'Terminal webhook state must permit a distinct new attempt.');
+attemptAssert(!$afterExpiryEvent['reused'] && $afterExpiryEvent['key'] !== $first['key'], 'Terminal webhook state must permit a distinct new attempt.');
 
 $metadata->saveCheckout($order, ['checkout_url' => 'https://checkout.test/expired', 'expires_at' => gmdate('c', time() - 60)], 'test');
 $afterTimestampExpiry = $metadata->prepareCheckoutAttempt($order, 'test', 'fingerprint-b');
-attemptAssert(!$afterTimestampExpiry['reused'] && $afterTimestampExpiry['key'] !== $afterExpiryEvent['key'], 'Expired request timestamp must not reuse a stale checkout URL.');
+attemptAssert($afterTimestampExpiry['reused'] && $afterTimestampExpiry['key'] === $afterExpiryEvent['key'], 'Local expiry must not mint a new financial operation; PayX owns authoritative recovery.');
+
+$unknown=new WC_Order(78);$unknownAttempt=$metadata->prepareCheckoutAttempt($unknown,'test','a');
+$unknown->update_meta_data(Metadata::ATTEMPT_STARTED_AT,time()-86400);
+try {$metadata->prepareCheckoutAttempt($unknown,'test','a');throw new RuntimeException('Old uncertain attempt was replayed');}
+catch(DomainException $exception){attemptAssert($unknown->get_meta(Metadata::ATTEMPT_KEY)===$unknownAttempt['key'],'Expired idempotency safety window must retain evidence, not rotate key.');}
 
 $order->refunds = [new FakeRefund(501)];
 $refund = $metadata->prepareRefundAttempt($order, '5.00', 'Customer request', 'test');

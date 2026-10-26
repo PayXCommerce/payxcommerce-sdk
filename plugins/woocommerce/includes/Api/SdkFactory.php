@@ -45,6 +45,26 @@ final class SdkFactory
         delete_transient($this->tokenCacheKey());
     }
 
+    public function retryAfterSeconds(): int
+    {
+        return max(0, min(300, (int) get_transient($this->cooldownKey()) - time()));
+    }
+
+    public function deferRequests(int $seconds): void
+    {
+        $seconds = max(1, min(300, $seconds));
+        $until = min(time() + 300, max(time() + $seconds, (int) get_transient($this->cooldownKey())));
+        set_transient($this->cooldownKey(), $until, max(1, $until - time()));
+    }
+
+    private function cooldownKey(): string
+    {
+        return 'payxcommerce_retry_' . hash('sha256', implode('|', [
+            $this->option('base_url', Settings::DEFAULT_BASE_URL), $this->option('environment', 'test'),
+            $this->option('auth_method', 'hmac'), $this->option('public_key'), $this->option('client_id'),
+        ]));
+    }
+
     private function accessToken(): string
     {
         $cacheKey = $this->tokenCacheKey();

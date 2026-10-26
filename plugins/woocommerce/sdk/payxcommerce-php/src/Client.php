@@ -63,4 +63,3 @@ final class Client
         return new Refunds($this);
     }
 }
-

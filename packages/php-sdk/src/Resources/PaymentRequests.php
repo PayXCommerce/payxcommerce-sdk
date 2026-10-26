@@ -18,4 +18,3 @@ final class PaymentRequests
         return $this->client->request('POST', '/payment-requests', $payload, $headers);
     }
 }
-

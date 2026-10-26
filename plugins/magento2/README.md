@@ -13,8 +13,8 @@ PayXCommerce_Payment
 Magento does not provide a standard admin ZIP upload flow like WordPress/OpenCart. The PayXCommerce Magento module is distributed in two formats for different Magento deployment workflows:
 
 - Manual app/code package: `payxcommerce-magento2-payment-app-code-0.3.10.zip`
-  - Contains `app/code/PayXCommerce/Payment`.
-  - Unzip at the Magento root.
+  - Contains `PayXCommerce/Payment`.
+  - Unzip into the Magento `app/code` directory to produce `app/code/PayXCommerce/Payment`.
   - Run `bin/magento module:enable PayXCommerce_Payment`, `bin/magento setup:upgrade`, and `bin/magento cache:flush`.
 
 - Composer artifact package: `payxcommerce-magento2-payment-composer-0.3.10.zip`

@@ -11,4 +11,3 @@ final class Nonce
         return bin2hex(random_bytes($bytes));
     }
 }
-

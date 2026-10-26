@@ -7,4 +7,3 @@ namespace PayXCommerce\Exceptions;
 final class AuthException extends ApiException
 {
 }
-

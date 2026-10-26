@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__.'/payxcommerce-sdk/autoload.php';
+
 class PayXCommerce
 {
     private const TOKEN_SCOPE = 'payment_requests.write transactions.read balances.read refunds.write';
@@ -142,33 +144,10 @@ class PayXCommerce
 
     private function curl(string $method, string $url, array $headers, string $body): array
     {
-        $curl = curl_init($url);
-        curl_setopt_array($curl, [
-            CURLOPT_CUSTOMREQUEST => strtoupper($method),
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER => $headers,
-            CURLOPT_TIMEOUT => 30,
-        ]);
-
-        if ($body !== '') {
-            curl_setopt($curl, CURLOPT_POSTFIELDS, $body);
-        }
-
-        $responseBody = curl_exec($curl);
-        $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
-        $error = curl_error($curl);
-        curl_close($curl);
-
-        if ($responseBody === false) {
-            throw new RuntimeException($error ?: 'API request failed.');
-        }
-
-        $decoded = json_decode((string) $responseBody, true);
-        if ($status >= 400) {
-            throw new RuntimeException((string) ($decoded['message'] ?? $decoded['error'] ?? 'API request failed.'));
-        }
-
-        return is_array($decoded) ? $decoded : [];
+        $mapped=[];
+        foreach($headers as$header){[$name,$value]=explode(':',$header,2);$mapped[$name]=trim($value);}
+        return (new \PayXCommerce\Http\CurlHttpClient(30))
+            ->send($method,$url,$mapped,$body);
     }
 
     private function endpoint(string $path): string

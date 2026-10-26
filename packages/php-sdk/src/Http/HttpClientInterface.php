@@ -12,4 +12,3 @@ interface HttpClientInterface
      */
     public function send(string $method, string $url, array $headers = [], string $body = ''): array;
 }
-
