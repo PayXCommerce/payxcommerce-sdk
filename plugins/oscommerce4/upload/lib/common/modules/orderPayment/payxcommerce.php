@@ -205,9 +205,34 @@ JS);
             && !\Yii::$app->get('platform')->getConfig(\common\classes\platform::currentId())->checkNeedLogged();
         $query = ($guest ? 'guest=1&' : '') . 'payxcommerce_express=1';
         $url = tep_href_link('checkout', $query, 'SSL');
-        \Yii::$app->view->registerCss('.payxcommerce-express-button{display:block;box-sizing:border-box;width:100%;max-width:100%;min-height:44px;text-align:center}');
-        return '<a class="btn-2 payxcommerce-express-button" aria-label="Continue to checkout with PayXCommerce" href="'
-            . \yii\helpers\Html::encode($url) . '">Pay with PayXCommerce</a>';
+        $logoUrl = rtrim((string) \Yii::getAlias('@web'), '/') . '/images/payxcommerce/logo-icon-dark-64.png';
+        return self::expressButtonHtml($url, $logoUrl);
+    }
+
+    private static function expressButtonHtml(string $url, string $logoUrl): string
+    {
+        $css = <<<'CSS'
+a.payxcommerce-express-button{position:relative;display:flex;align-items:center;justify-content:center;gap:9px;width:100%;max-width:750px;height:45px;padding:5px 12px;box-sizing:border-box;overflow:hidden;border:1px solid #00b9b5;border-radius:999px;background:linear-gradient(110deg,#071839 0%,#082b56 70%,#064b65 100%);box-shadow:0 4px 12px rgba(5,29,67,.2),inset 0 1px 1px rgba(255,255,255,.1);color:#fff;font:700 15px/1.2 Arial,Helvetica,sans-serif;text-decoration:none;white-space:nowrap;cursor:pointer;transition:transform .2s ease,box-shadow .2s ease}
+a.payxcommerce-express-button:hover{transform:translateY(-2px);box-shadow:0 7px 16px rgba(5,29,67,.28),0 0 0 1px rgba(0,185,181,.15);color:#fff;text-decoration:none}
+a.payxcommerce-express-button:active{transform:translateY(0)}
+a.payxcommerce-express-button:focus-visible{outline:3px solid #00b9b5;outline-offset:3px}
+a.payxcommerce-express-button .payxcommerce-wave{position:absolute;right:0;bottom:0;width:42%;height:100%;pointer-events:none}
+a.payxcommerce-express-button .payxcommerce-logo{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;width:33px;height:33px;flex-shrink:0;background:#fff;border-radius:9px}
+a.payxcommerce-express-button .payxcommerce-logo img{width:27px;height:27px;object-fit:contain}
+a.payxcommerce-express-button .payxcommerce-text{position:relative;z-index:1;letter-spacing:-.2px}
+@media(max-width:480px){a.payxcommerce-express-button{gap:7px;padding:5px 9px;font-size:14px}a.payxcommerce-express-button .payxcommerce-logo{width:31px;height:31px}a.payxcommerce-express-button .payxcommerce-logo img{width:25px;height:25px}}
+@media(prefers-reduced-motion:reduce){a.payxcommerce-express-button{transition:none}}
+CSS;
+        $checkout = htmlspecialchars($url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $icon = htmlspecialchars($logoUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+        return '<style>' . $css . '</style>'
+            . '<a class="btn-2 payxcommerce-express-button" aria-label="Continue to checkout with PayXCommerce" href="' . $checkout . '">'
+            . '<svg class="payxcommerce-wave" viewBox="0 0 200 70" preserveAspectRatio="none" aria-hidden="true">'
+            . '<path d="M0 70 C90 67 165 50 200 12 L200 70 Z" fill="#007e8b" opacity="0.55"/>'
+            . '<path d="M65 70 C135 65 183 41 200 23 L200 43 C175 62 148 70 125 70 Z" fill="#00c5bf"/>'
+            . '</svg><span class="payxcommerce-logo"><img src="' . $icon . '" alt=""></span>'
+            . '<span class="payxcommerce-text">Pay with PayXCommerce</span></a>';
     }
 
     private function allowedForExpress(): bool

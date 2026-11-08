@@ -37,6 +37,24 @@ namespace {
     check($configuration['MODULE_PAYMENT_PAYXCOMMERCE_REFUNDED_STATUS_ID']['set_function'] === 'selectOrderStatus(',
         'status selector includes ungrouped statuses');
 
+    $buttonRenderer = new ReflectionMethod(payxcommerce::class, 'expressButtonHtml');
+    $button = $buttonRenderer->invoke(null, '/store/checkout?payxcommerce_express=1&guest=1',
+        '/store/images/payxcommerce/logo-icon-dark-64.png');
+    check(str_contains($button, '<style>') && str_contains($button, '</style>')
+        && str_contains($button, 'a.payxcommerce-express-button{'), 'button styles stay with scoped markup');
+    check(str_contains($button, 'height:45px') && str_contains($button, 'border:1px solid #00b9b5')
+        && str_contains($button, 'width:100%'), 'PayPal-sized button and one-pixel border');
+    check(str_contains($button, 'href="/store/checkout?payxcommerce_express=1&amp;guest=1"')
+        && str_contains($button, 'Pay with PayXCommerce'), 'express checkout destination and text retained');
+    check(str_contains($button, 'src="/store/images/payxcommerce/logo-icon-dark-64.png"')
+        && !str_contains($button, 'https://payxcommerce.com'), 'bundled relative icon URL');
+    check(str_contains($button, 'aria-hidden="true"') && str_contains($button, 'prefers-reduced-motion'),
+        'decorative wave and reduced-motion support');
+    $escapedButton = $buttonRenderer->invoke(null, '/checkout?next=" onmouseover="bad', '/images/icon" onerror="bad');
+    check(!str_contains($escapedButton, 'onmouseover="bad') && !str_contains($escapedButton, 'onerror="bad'),
+        'express button attributes escaped');
+    check(is_file(__DIR__ . '/../upload/images/payxcommerce/logo-icon-dark-64.png'), 'bundled express icon exists');
+
     check(payxcommerce::roundDecimal('699.782609', 2) === '699.78', 'currency rounding down');
     check(payxcommerce::roundDecimal('699.785000', 2) === '699.79', 'currency rounding half up');
     check(payxcommerce::roundDecimal('0.005000', 2) === '0.01', 'sub-cent rounding');
