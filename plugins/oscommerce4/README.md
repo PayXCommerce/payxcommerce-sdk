@@ -16,6 +16,8 @@ New installs use display sort order `1`; an existing store's chosen order is ret
 
 The express button carries only button-scoped CSS in its returned markup. It is 50px high, fills its checkout container like a standard PayPal button, has no border and white text, and loads the icon from the package's relative `images/payxcommerce/` path. It does not load an icon from the PayXCommerce website. Keep the bundled image when upgrading.
 
+When PayXCommerce is selected on checkout, the existing submit button receives the same scoped style and local icon. It remains the normal checkout form submit, including osCommerce's validation and disabled state. Switching to another payment method restores the store's original button.
+
 The module sends the store's `callback/webhooks.payment.payxcommerce` endpoint on each request. This route must be reachable over HTTPS by PayX without a store login or HTTP Basic Auth, but should have normal perimeter rate limits. The module authenticates each callback with the `X-PXC-Event-ID`, `X-PXC-Timestamp`, and `X-PXC-Signature` headers and the raw request body. Configure the same callback URL in PayX merchant webhook settings as a fallback. Never use a Production merchant key on a non-Production osCommerce installation.
 
 ## Payment lifecycle

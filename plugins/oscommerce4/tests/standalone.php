@@ -8,7 +8,23 @@ namespace common\classes\modules {
     class ModuleStatus {}
 }
 
+namespace common\components {
+    class View { public const POS_END = 3; }
+}
+
 namespace {
+    class Yii {
+        public static object $app;
+        public static function getAlias(string $alias): string { return '/store'; }
+    }
+
+    class ButtonTestView {
+        public array $css = [];
+        public array $js = [];
+        public function registerCss(string $css, array $options = [], ?string $key = null): void { $this->css[$key] = $css; }
+        public function registerJs(string $js, ?int $position = null, ?string $key = null): void { $this->js[$key] = $js; }
+    }
+
     require __DIR__ . '/../upload/lib/common/modules/orderPayment/payxcommerce.php';
 
     use common\modules\orderPayment\lib\PayxClient;
@@ -56,6 +72,23 @@ namespace {
     check(!str_contains($escapedButton, 'onmouseover="bad') && !str_contains($escapedButton, 'onerror="bad'),
         'express button attributes escaped');
     check(is_file(__DIR__ . '/../upload/images/payxcommerce/logo-icon-dark-64.png'), 'bundled express icon exists');
+
+    $view = new ButtonTestView();
+    Yii::$app = new class($view) {
+        public function __construct(private ButtonTestView $view) {}
+        public function getView(): ButtonTestView { return $this->view; }
+    };
+    check($module->selection() === ['id' => 'payxcommerce', 'module' => 'Pay securely with PayXCommerce'],
+        'checkout payment selection retained');
+    $checkoutCss = $view->css['payxcommerce-checkout-button'] ?? '';
+    $checkoutJs = $view->js['payxcommerce-checkout-button'] ?? '';
+    check(str_contains($checkoutCss, '#frmCheckout .w-checkout-continue-btn button.payxcommerce-checkout-button')
+        && str_contains($checkoutCss, 'height:50px') && str_contains($checkoutCss, 'border:none')
+        && !str_contains($checkoutCss, 'a.payxcommerce-express-button'), 'checkout styles scoped to selected submit button');
+    check(str_contains($checkoutJs, 'input[name="payment"]:checked')
+        && str_contains($checkoutJs, 'Pay with PayXCommerce')
+        && str_contains($checkoutJs, '/store/images/payxcommerce/logo-icon-dark-64.png')
+        && str_contains($checkoutJs, 'originalMarkup.get(button)'), 'checkout label, relative icon and other payment restoration');
 
     check(payxcommerce::roundDecimal('699.782609', 2) === '699.78', 'currency rounding down');
     check(payxcommerce::roundDecimal('699.785000', 2) === '699.79', 'currency rounding half up');

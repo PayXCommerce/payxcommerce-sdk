@@ -211,7 +211,16 @@ JS);
 
     private static function expressButtonHtml(string $url, string $logoUrl): string
     {
-        $css = <<<'CSS'
+        $checkout = htmlspecialchars($url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+        return '<style>' . self::buttonCss() . '</style>'
+            . '<a class="btn-2 payxcommerce-express-button" aria-label="Continue to checkout with PayXCommerce" href="' . $checkout . '">'
+            . self::buttonContents($logoUrl, 'Pay with PayXCommerce') . '</a>';
+    }
+
+    private static function buttonCss(): string
+    {
+        return <<<'CSS'
 a.payxcommerce-express-button{position:relative;display:flex;align-items:center;justify-content:center;gap:9px;width:100%;max-width:750px;height:50px;padding:5px 12px;box-sizing:border-box;overflow:hidden;border:none;border-radius:999px;background:linear-gradient(110deg,#071839 0%,#082b56 70%,#064b65 100%);box-shadow:0 4px 12px rgba(5,29,67,.2),inset 0 1px 1px rgba(255,255,255,.1);color:#fff;font:700 15px/1.2 Arial,Helvetica,sans-serif;text-decoration:none;white-space:nowrap;cursor:pointer;transition:transform .2s ease,box-shadow .2s ease}
 a.payxcommerce-express-button:hover{transform:translateY(-2px);box-shadow:0 7px 16px rgba(5,29,67,.28),0 0 0 1px rgba(0,185,181,.15);color:#fff;text-decoration:none}
 a.payxcommerce-express-button:active{transform:translateY(0)}
@@ -223,16 +232,18 @@ a.payxcommerce-express-button .payxcommerce-text{position:relative;z-index:1;let
 @media(max-width:480px){a.payxcommerce-express-button{gap:7px;padding:5px 9px;font-size:14px}a.payxcommerce-express-button .payxcommerce-logo{width:31px;height:31px}a.payxcommerce-express-button .payxcommerce-logo img{width:25px;height:25px}}
 @media(prefers-reduced-motion:reduce){a.payxcommerce-express-button{transition:none}}
 CSS;
-        $checkout = htmlspecialchars($url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-        $icon = htmlspecialchars($logoUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    }
 
-        return '<style>' . $css . '</style>'
-            . '<a class="btn-2 payxcommerce-express-button" aria-label="Continue to checkout with PayXCommerce" href="' . $checkout . '">'
-            . '<svg class="payxcommerce-wave" viewBox="0 0 200 70" preserveAspectRatio="none" aria-hidden="true">'
+    private static function buttonContents(string $logoUrl, string $label): string
+    {
+        $icon = htmlspecialchars($logoUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $text = htmlspecialchars($label, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+        return '<svg class="payxcommerce-wave" viewBox="0 0 200 70" preserveAspectRatio="none" aria-hidden="true">'
             . '<path d="M0 70 C90 67 165 50 200 12 L200 70 Z" fill="#007e8b" opacity="0.55"/>'
             . '<path d="M65 70 C135 65 183 41 200 23 L200 43 C175 62 148 70 125 70 Z" fill="#00c5bf"/>'
             . '</svg><span class="payxcommerce-logo"><img src="' . $icon . '" alt=""></span>'
-            . '<span class="payxcommerce-text">Pay with PayXCommerce</span></a>';
+            . '<span class="payxcommerce-text">' . $text . '</span>';
     }
 
     private function allowedForExpress(): bool
@@ -248,7 +259,63 @@ CSS;
 
     public function selection()
     {
+        $logoUrl = rtrim((string) \Yii::getAlias('@web'), '/') . '/images/payxcommerce/logo-icon-dark-64.png';
+        self::registerCheckoutButton($logoUrl);
         return ['id' => $this->code, 'module' => $this->public_title];
+    }
+
+    private static function registerCheckoutButton(string $logoUrl): void
+    {
+        $selector = '#frmCheckout .w-checkout-continue-btn button.payxcommerce-checkout-button';
+        $css = str_replace('a.payxcommerce-express-button', $selector, self::buttonCss());
+        $css .= "\n" . $selector . '.disabled-area,' . $selector
+            . '[disabled]{opacity:.5;cursor:not-allowed;transform:none}';
+        \Yii::$app->getView()->registerCss($css, [], 'payxcommerce-checkout-button');
+
+        $contents = json_encode(
+            self::buttonContents($logoUrl, 'Pay with PayXCommerce'),
+            JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR
+        );
+        $js = str_replace('__PAYX_MARKUP__', $contents, <<<'JS'
+(function () {
+    if (window.payxcommerceCheckoutButtonBound) return;
+    window.payxcommerceCheckoutButtonBound = true;
+    var originalMarkup = new WeakMap();
+    var payxMarkup = __PAYX_MARKUP__;
+
+    function updateButton() {
+        var form = document.getElementById('frmCheckout');
+        if (!form) return;
+        var button = form.querySelector('.w-checkout-continue-btn button[type="submit"].btn-next');
+        if (!button) return;
+        var selected = form.querySelector('input[name="payment"]:checked');
+        var isPayx = selected && selected.value === 'payxcommerce';
+        if (isPayx && !button.classList.contains('payxcommerce-checkout-button')) {
+            originalMarkup.set(button, button.innerHTML);
+            button.innerHTML = payxMarkup;
+            button.classList.add('payxcommerce-checkout-button');
+        } else if (!isPayx && button.classList.contains('payxcommerce-checkout-button')) {
+            button.innerHTML = originalMarkup.get(button) || button.innerHTML;
+            button.classList.remove('payxcommerce-checkout-button');
+            originalMarkup.delete(button);
+        }
+    }
+
+    function onPaymentChoice(event) {
+        if (event.target.matches('input[name="payment"]')) {
+            setTimeout(updateButton, 0);
+        }
+    }
+    document.addEventListener('click', onPaymentChoice);
+    document.addEventListener('change', onPaymentChoice);
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', updateButton, { once: true });
+    } else {
+        updateButton();
+    }
+})();
+JS);
+        \Yii::$app->getView()->registerJs($js, \common\components\View::POS_END, 'payxcommerce-checkout-button');
     }
 
     public function isOnline()
