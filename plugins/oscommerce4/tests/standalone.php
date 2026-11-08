@@ -85,6 +85,9 @@ namespace {
     check(str_contains($checkoutCss, '#frmCheckout .w-checkout-continue-btn button.payxcommerce-checkout-button')
         && str_contains($checkoutCss, 'height:50px') && str_contains($checkoutCss, 'border:none')
         && !str_contains($checkoutCss, 'a.payxcommerce-express-button'), 'checkout styles scoped to selected submit button');
+    check(str_contains($checkoutCss,
+        '#frmCheckout .w-checkout-continue-btn button.payxcommerce-checkout-button{display:flex!important}'),
+        'PayX button keeps flex layout after PayPal restores inline display');
     check(str_contains($checkoutJs, 'input[name="payment"]:checked')
         && str_contains($checkoutJs, 'Pay with PayXCommerce')
         && str_contains($checkoutJs, '/store/images/payxcommerce/logo-icon-dark-64.png')

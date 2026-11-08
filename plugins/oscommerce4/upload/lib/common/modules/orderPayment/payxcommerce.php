@@ -268,6 +268,10 @@ CSS;
     {
         $selector = '#frmCheckout .w-checkout-continue-btn button.payxcommerce-checkout-button';
         $css = str_replace('a.payxcommerce-express-button', $selector, self::buttonCss());
+        // PayPal restores the shared submit with an inline display:inline-block.
+        // Override that only while PayX is selected; removing this class lets
+        // the other payment module control its own button again.
+        $css .= "\n" . $selector . '{display:flex!important}';
         $css .= "\n" . $selector . '.disabled-area,' . $selector
             . '[disabled]{opacity:.5;cursor:not-allowed;transform:none}';
         \Yii::$app->getView()->registerCss($css, [], 'payxcommerce-checkout-button');
