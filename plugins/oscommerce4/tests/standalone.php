@@ -29,6 +29,14 @@ namespace {
         throw new RuntimeException($name . ' was not rejected');
     }
 
+    $module = (new ReflectionClass(payxcommerce::class))->newInstanceWithoutConstructor();
+    $configuration = $module->configure_keys();
+    check(array_key_first($configuration) === 'MODULE_PAYMENT_PAYXCOMMERCE_EXPRESS_CHECKOUT', 'express toggle first in settings');
+    check($configuration['MODULE_PAYMENT_PAYXCOMMERCE_EXPRESS_CHECKOUT']['value'] === 'True', 'new-install express default on');
+    check($configuration['MODULE_PAYMENT_PAYXCOMMERCE_SORT_ORDER']['value'] === '1', 'new-install sort default one');
+    check($configuration['MODULE_PAYMENT_PAYXCOMMERCE_REFUNDED_STATUS_ID']['set_function'] === 'selectOrderStatus(',
+        'status selector includes ungrouped statuses');
+
     check(payxcommerce::roundDecimal('699.782609', 2) === '699.78', 'currency rounding down');
     check(payxcommerce::roundDecimal('699.785000', 2) === '699.79', 'currency rounding half up');
     check(payxcommerce::roundDecimal('0.005000', 2) === '0.01', 'sub-cent rounding');

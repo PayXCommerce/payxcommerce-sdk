@@ -47,6 +47,178 @@ final class payxcommerce extends ModulePayment
             $this->enabled = false;
         }
         $this->dont_send_email = true;
+        $this->validateAdminSaveBeforeAnyWrite();
+        if (\Yii::$app->id === 'app-backend'
+            && \Yii::$app->controller->id === 'modules'
+            && \Yii::$app->controller->action->id === 'edit'
+            && \Yii::$app->request->get('module') === $this->code) {
+            \Yii::$app->view->registerJs(<<<'JS'
+$(document).ajaxError(function (_event, xhr, settings) {
+    if (xhr.status === 422 && settings.url.indexOf('modules/save?set=payment') !== -1) {
+        var message = $('<div>').text(xhr.responseText).html();
+        Resp('payxcommerce', '<div class="alert alert-danger">' + message + '</div>');
+    }
+});
+JS);
+        }
+        if ($this->enabled && \Yii::$app->id === 'app-frontend'
+            && \Yii::$app->controller->id === 'checkout'
+            && \Yii::$app->controller->action->id === 'index'
+            && !\Yii::$app->request->isPost
+            && \Yii::$app->request->get('payxcommerce_express') === '1'
+            && isset($this->manager) && $this->allowedForExpress()) {
+            // Express is a shortcut into the normal checkout, not an order or
+            // payment-creation endpoint. All address/shipping/consent checks remain.
+            $this->manager->setPayment($this->code);
+        }
+    }
+
+    /** The core save action writes fields one by one, so reject an invalid
+     * enabled configuration in the constructor, before its first write. */
+    private function validateAdminSaveBeforeAnyWrite(): void
+    {
+        if (\Yii::$app->id !== 'app-backend'
+            || \Yii::$app->controller->id !== 'modules'
+            || \Yii::$app->controller->action->id !== 'save'
+            || \Yii::$app->request->post('module') !== $this->code) {
+            return;
+        }
+        $submitted = \Yii::$app->request->post('configuration');
+        if (!is_array($submitted)) {
+            self::rejectSettingsSave('PayXCommerce settings were not submitted. No settings were changed.');
+        }
+        $platformId = (int) \Yii::$app->request->post('platform_id', \Yii::$app->request->get('platform_id', 0));
+        if ($platformId <= 0) {
+            self::rejectSettingsSave('Select a storefront before saving PayXCommerce settings. No settings were changed.');
+        }
+        $keys = array_keys($this->configure_keys());
+        if (array_diff(array_keys($submitted), $keys)) {
+            self::rejectSettingsSave('Unknown PayXCommerce setting. No settings were changed.');
+        }
+        $saved = \Yii::$app->db->createCommand(
+            'SELECT configuration_key, configuration_value FROM platforms_configuration WHERE platform_id = :platform AND configuration_key LIKE :prefix',
+            [':platform' => $platformId, ':prefix' => 'MODULE_PAYMENT_PAYXCOMMERCE_%']
+        )->queryAll();
+        $effective = array_column($saved, 'configuration_value', 'configuration_key');
+        foreach ($submitted as $key => $value) {
+            if (!is_scalar($value)) {
+                self::rejectSettingsSave('Invalid PayXCommerce setting value. No settings were changed.');
+            }
+            if (in_array($key, $this->encrypted_keys, true)
+                && ($value === '' || $value === (defined('PASSWORD_HIDDEN') ? PASSWORD_HIDDEN : '--Encrypted--'))) {
+                continue;
+            }
+            $effective[$key] = (string) $value;
+        }
+        if (!in_array($effective['MODULE_PAYMENT_PAYXCOMMERCE_STATUS'] ?? '', ['True', 'False'], true)
+            || !in_array($effective['MODULE_PAYMENT_PAYXCOMMERCE_EXPRESS_CHECKOUT'] ?? '', ['True', 'False'], true)
+            || !ctype_digit((string) ($effective['MODULE_PAYMENT_PAYXCOMMERCE_SORT_ORDER'] ?? ''))) {
+            self::rejectSettingsSave('PayXCommerce enablement or sort order is invalid. No settings were changed.');
+        }
+        if (($effective['MODULE_PAYMENT_PAYXCOMMERCE_STATUS'] ?? 'False') !== 'True') {
+            return;
+        }
+        $mode = $effective['MODULE_PAYMENT_PAYXCOMMERCE_ENVIRONMENT'] ?? '';
+        $auth = $effective['MODULE_PAYMENT_PAYXCOMMERCE_AUTH_METHOD'] ?? '';
+        if (!in_array($mode, ['test', 'live'], true) || !in_array($auth, ['hmac', 'bearer'], true)) {
+            self::rejectSettingsSave('Select a valid PayXCommerce mode and authentication method. No settings were changed.');
+        }
+        try {
+            new PayxClient(['base_url' => $effective['MODULE_PAYMENT_PAYXCOMMERCE_API_URL'] ?? '']);
+        } catch (\InvalidArgumentException $exception) {
+            self::rejectSettingsSave('PayXCommerce API URL must be an HTTPS PayXCommerce host. No settings were changed.');
+        }
+        if (($effective['MODULE_PAYMENT_PAYXCOMMERCE_WEBHOOK_SECRET'] ?? '') === ''
+            || ($auth === 'hmac' && (!str_starts_with($effective['MODULE_PAYMENT_PAYXCOMMERCE_PUBLIC_KEY'] ?? '', $mode === 'test' ? 'pk_test_' : 'pk_live_')
+                || ($effective['MODULE_PAYMENT_PAYXCOMMERCE_SECRET_KEY'] ?? '') === ''))
+            || ($auth === 'bearer' && (($effective['MODULE_PAYMENT_PAYXCOMMERCE_CLIENT_ID'] ?? '') === ''
+                || ($effective['MODULE_PAYMENT_PAYXCOMMERCE_CLIENT_SECRET'] ?? '') === ''))) {
+            self::rejectSettingsSave('PayXCommerce credentials or webhook signing secret are incomplete for this mode. No settings were changed.');
+        }
+        $statusKeys = ['PENDING', 'SUCCESS', 'FAILED', 'CANCELLED', 'PARTIAL_REFUNDED', 'REFUNDED', 'CHARGEBACK'];
+        $ids = [];
+        foreach ($statusKeys as $kind) {
+            $value = $effective['MODULE_PAYMENT_PAYXCOMMERCE_' . $kind . '_STATUS_ID'] ?? '';
+            if (!ctype_digit($value) || (int) $value <= 0) {
+                self::rejectSettingsSave('Every PayXCommerce order status must be selected before enabling. No settings were changed.');
+            }
+            $ids[] = (int) $value;
+        }
+        if (count(array_unique($ids)) !== count($ids)) {
+            self::rejectSettingsSave('PayXCommerce order statuses must be distinct. No settings were changed.');
+        }
+        $found = \Yii::$app->db->createCommand('SELECT DISTINCT orders_status_id FROM orders_status WHERE orders_status_id IN (' . implode(',', $ids) . ')')->queryColumn();
+        if (count($found) !== count($ids)) {
+            self::rejectSettingsSave('A PayXCommerce order status does not exist. No settings were changed.');
+        }
+    }
+
+    private static function rejectSettingsSave(string $message): never
+    {
+        // The osCommerce edit form saves over AJAX. Use a real failure status;
+        // the edit-page handler displays this safe, explicit message.
+        \Yii::$app->response->statusCode = 422;
+        \Yii::$app->response->content = $message;
+        \Yii::$app->end();
+    }
+
+    public static function selectOrderStatus($value, $key): string
+    {
+        $languageId = (int) \Yii::$app->settings->get('languages_id');
+        $rows = \Yii::$app->db->createCommand(
+            'SELECT orders_status_id, COALESCE(MAX(CASE WHEN language_id = :language THEN orders_status_name END), MIN(orders_status_name)) AS orders_status_name '
+            . 'FROM orders_status GROUP BY orders_status_id ORDER BY orders_status_name, orders_status_id',
+            [':language' => $languageId]
+        )->queryAll();
+        $choices = ['0' => 'Select an order status'];
+        foreach ($rows as $row) {
+            // Include group 0: the core grouped control silently drops it.
+            $choices[(string) $row['orders_status_id']] = $row['orders_status_name'];
+        }
+        return \yii\helpers\Html::dropDownList('configuration[' . $key . ']', (string) $value, $choices, ['class' => 'form-control']);
+    }
+
+    public function confValueBeforeSave($key, $value, $platform_id)
+    {
+        if (in_array($key, $this->encrypted_keys, true) && $value === '') {
+            // The admin renders encrypted values as a placeholder. An empty
+            // ordinary save must never erase the previously stored secret.
+            return (new \common\classes\platform_config($platform_id))->const_value($key, '');
+        }
+        return parent::confValueBeforeSave($key, $value, $platform_id);
+    }
+
+    public function checkout_initialization_method(): string
+    {
+        if (!$this->enabled || \Yii::$app->id !== 'app-frontend'
+            || \Yii::$app->controller->id !== 'shopping-cart'
+            || !defined('MODULE_PAYMENT_PAYXCOMMERCE_EXPRESS_CHECKOUT')
+            || MODULE_PAYMENT_PAYXCOMMERCE_EXPRESS_CHECKOUT !== 'True'
+            || !$this->allowedForExpress()) {
+            return '';
+        }
+        global $cart;
+        if (!$cart || $cart->count_contents() < 1 || $cart->show_total() <= 0) {
+            return '';
+        }
+        $guest = \Yii::$app->user->isGuest
+            && !\Yii::$app->get('platform')->getConfig(\common\classes\platform::currentId())->checkNeedLogged();
+        $query = ($guest ? 'guest=1&' : '') . 'payxcommerce_express=1';
+        $url = tep_href_link('checkout', $query, 'SSL');
+        \Yii::$app->view->registerCss('.payxcommerce-express-button{display:block;box-sizing:border-box;width:100%;max-width:100%;min-height:44px;text-align:center}');
+        return '<a class="btn-2 payxcommerce-express-button" aria-label="Continue to checkout with PayXCommerce" href="'
+            . \yii\helpers\Html::encode($url) . '">Pay with PayXCommerce</a>';
+    }
+
+    private function allowedForExpress(): bool
+    {
+        $platformId = \common\classes\platform::currentId();
+        $groupId = (int) \Yii::$app->storage->get('customer_groups_id');
+        if ($groupId === 0 && \Yii::$app->user->isGuest && defined('DEFAULT_USER_GROUP')) {
+            $groupId = (int) DEFAULT_USER_GROUP;
+        }
+        return $this->getVisibily($platformId, ['shop_order'])
+            && $this->getGroupVisibily($platformId, $groupId);
     }
 
     public function selection()
@@ -556,9 +728,48 @@ final class payxcommerce extends ModulePayment
     public function describe_status_key() { return new ModuleStatus('MODULE_PAYMENT_PAYXCOMMERCE_STATUS', 'True', 'False'); }
     public function describe_sort_key() { return new ModuleSortOrder('MODULE_PAYMENT_PAYXCOMMERCE_SORT_ORDER'); }
 
+    public function check($platform_id)
+    {
+        // The core uses the first displayed key as the installation sentinel.
+        // Express must appear first in settings, but older installs only have
+        // STATUS. Detect by STATUS and let the normal module upgrader add new keys.
+        $platformId = (int) $platform_id;
+        if ($platformId <= 0) {
+            return 0;
+        }
+        $keys = $this->configure_keys();
+        $existing = \Yii::$app->db->createCommand(
+            'SELECT configuration_key FROM platforms_configuration WHERE platform_id = :platform AND configuration_key LIKE :prefix',
+            [':platform' => $platformId, ':prefix' => 'MODULE_PAYMENT_PAYXCOMMERCE_%']
+        )->queryColumn();
+        if (!in_array('MODULE_PAYMENT_PAYXCOMMERCE_STATUS', $existing, true)) {
+            return 0;
+        }
+        foreach ($keys as $key => $data) {
+            if (!in_array($key, $existing, true)) {
+                if ($key === 'MODULE_PAYMENT_PAYXCOMMERCE_EXPRESS_CHECKOUT') {
+                    // Upgrades do not silently change an existing store's cart.
+                    // New installs use configure_keys() and default to True.
+                    $data['value'] = 'False';
+                }
+                $this->add_config_key($platformId, $key, $data);
+            }
+        }
+        foreach (['PENDING', 'SUCCESS', 'FAILED', 'CANCELLED', 'PARTIAL_REFUNDED', 'REFUNDED', 'CHARGEBACK'] as $kind) {
+            $key = 'MODULE_PAYMENT_PAYXCOMMERCE_' . $kind . '_STATUS_ID';
+            \Yii::$app->db->createCommand()->update('platforms_configuration',
+                ['set_function' => 'selectOrderStatus('],
+                ['platform_id' => $platformId, 'configuration_key' => $key,
+                    'set_function' => 'tep_cfg_pull_down_order_statuses(']
+            )->execute();
+        }
+        return 1;
+    }
+
     public function configure_keys()
     {
         $keys = [
+            'EXPRESS_CHECKOUT' => ['Enable PayXCommerce express checkout', 'True', 'Show a cart shortcut that preselects PayXCommerce and completes the normal checkout steps.'],
             'STATUS' => ['Enable PayXCommerce', 'False', 'Enable hosted checkout only after credentials, webhook secret, and status IDs are configured.'],
             'ENVIRONMENT' => ['Payment mode', 'test', 'Use test or live credentials matching this mode.'],
             'API_URL' => ['PayX API URL', 'https://payxcommerce.com/api/v1', 'HTTPS PayX API root. Use the approved DEV endpoint only on a DEV test store.'],
@@ -575,7 +786,7 @@ final class payxcommerce extends ModulePayment
             'PARTIAL_REFUNDED_STATUS_ID' => ['Partially refunded order status', '0', 'Status after a signed partial refund.'],
             'REFUNDED_STATUS_ID' => ['Refunded order status', '0', 'Status for signed refund success.'],
             'CHARGEBACK_STATUS_ID' => ['Chargeback order status', '0', 'Status for signed dispute loss.'],
-            'SORT_ORDER' => ['Display sort order', '0', 'Lower numbers appear first.'],
+            'SORT_ORDER' => ['Display sort order', '1', 'Lower numbers appear first.'],
         ];
         $result = [];
         foreach ($keys as $name => [$title, $value, $description]) {
@@ -585,9 +796,9 @@ final class payxcommerce extends ModulePayment
                 $result[$key]['set_function'] = 'setConf(';
                 $result[$key]['use_function'] = '\\common\\classes\\modules\\Module::useConf';
             } elseif (str_ends_with($name, '_STATUS_ID')) {
-                $result[$key]['set_function'] = 'tep_cfg_pull_down_order_statuses(';
+                $result[$key]['set_function'] = 'selectOrderStatus(';
                 $result[$key]['use_function'] = '\\common\\helpers\\Order::get_order_status_name';
-            } elseif ($name === 'STATUS') {
+            } elseif ($name === 'STATUS' || $name === 'EXPRESS_CHECKOUT') {
                 $result[$key]['set_function'] = "tep_cfg_select_option(array('True', 'False'), ";
             } elseif ($name === 'ENVIRONMENT') {
                 $result[$key]['set_function'] = "tep_cfg_select_option(array('test', 'live'), ";
