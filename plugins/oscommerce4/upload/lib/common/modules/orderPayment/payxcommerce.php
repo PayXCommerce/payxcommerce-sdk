@@ -502,11 +502,22 @@ final class payxcommerce extends ModulePayment
         if (!defined('MODULE_PAYMENT_PAYXCOMMERCE_WEBHOOK_SECRET') || $this->decryptConst('MODULE_PAYMENT_PAYXCOMMERCE_WEBHOOK_SECRET') === '') {
             return false;
         }
-        if (defined('MODULE_PAYMENT_PAYXCOMMERCE_AUTH_METHOD') && MODULE_PAYMENT_PAYXCOMMERCE_AUTH_METHOD === 'bearer') {
+        try {
+            new PayxClient($this->settings());
+        } catch (\InvalidArgumentException $exception) {
+            return false;
+        }
+        $method = defined('MODULE_PAYMENT_PAYXCOMMERCE_AUTH_METHOD') ? MODULE_PAYMENT_PAYXCOMMERCE_AUTH_METHOD : 'hmac';
+        if (!in_array($method, ['hmac', 'bearer'], true)) {
+            return false;
+        }
+        if ($method === 'bearer') {
             return defined('MODULE_PAYMENT_PAYXCOMMERCE_CLIENT_ID') && MODULE_PAYMENT_PAYXCOMMERCE_CLIENT_ID !== ''
                 && $this->decryptConst('MODULE_PAYMENT_PAYXCOMMERCE_CLIENT_SECRET') !== '';
         }
-        return defined('MODULE_PAYMENT_PAYXCOMMERCE_PUBLIC_KEY') && MODULE_PAYMENT_PAYXCOMMERCE_PUBLIC_KEY !== ''
+        $prefix = $this->environment() === 'test' ? 'pk_test_' : 'pk_live_';
+        return defined('MODULE_PAYMENT_PAYXCOMMERCE_PUBLIC_KEY')
+            && str_starts_with(MODULE_PAYMENT_PAYXCOMMERCE_PUBLIC_KEY, $prefix)
             && $this->decryptConst('MODULE_PAYMENT_PAYXCOMMERCE_SECRET_KEY') !== '';
     }
 
