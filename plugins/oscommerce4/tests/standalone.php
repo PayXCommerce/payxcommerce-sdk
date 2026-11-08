@@ -42,8 +42,10 @@ namespace {
         '/store/images/payxcommerce/logo-icon-dark-64.png');
     check(str_contains($button, '<style>') && str_contains($button, '</style>')
         && str_contains($button, 'a.payxcommerce-express-button{'), 'button styles stay with scoped markup');
-    check(str_contains($button, 'height:45px') && str_contains($button, 'border:1px solid #00b9b5')
-        && str_contains($button, 'width:100%'), 'PayPal-sized button and one-pixel border');
+    check(str_contains($button, 'height:50px') && str_contains($button, 'border:none')
+        && str_contains($button, 'width:100%'), 'PayPal-sized button without border');
+    check(str_contains($button, 'a.payxcommerce-express-button .payxcommerce-text{position:relative;z-index:1;letter-spacing:-.2px;color:#ffffff}'),
+        'button text is explicitly white');
     check(str_contains($button, 'href="/store/checkout?payxcommerce_express=1&amp;guest=1"')
         && str_contains($button, 'Pay with PayXCommerce'), 'express checkout destination and text retained');
     check(str_contains($button, 'src="/store/images/payxcommerce/logo-icon-dark-64.png"')

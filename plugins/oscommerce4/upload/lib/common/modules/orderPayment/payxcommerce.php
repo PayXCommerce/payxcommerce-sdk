@@ -212,14 +212,14 @@ JS);
     private static function expressButtonHtml(string $url, string $logoUrl): string
     {
         $css = <<<'CSS'
-a.payxcommerce-express-button{position:relative;display:flex;align-items:center;justify-content:center;gap:9px;width:100%;max-width:750px;height:45px;padding:5px 12px;box-sizing:border-box;overflow:hidden;border:1px solid #00b9b5;border-radius:999px;background:linear-gradient(110deg,#071839 0%,#082b56 70%,#064b65 100%);box-shadow:0 4px 12px rgba(5,29,67,.2),inset 0 1px 1px rgba(255,255,255,.1);color:#fff;font:700 15px/1.2 Arial,Helvetica,sans-serif;text-decoration:none;white-space:nowrap;cursor:pointer;transition:transform .2s ease,box-shadow .2s ease}
+a.payxcommerce-express-button{position:relative;display:flex;align-items:center;justify-content:center;gap:9px;width:100%;max-width:750px;height:50px;padding:5px 12px;box-sizing:border-box;overflow:hidden;border:none;border-radius:999px;background:linear-gradient(110deg,#071839 0%,#082b56 70%,#064b65 100%);box-shadow:0 4px 12px rgba(5,29,67,.2),inset 0 1px 1px rgba(255,255,255,.1);color:#fff;font:700 15px/1.2 Arial,Helvetica,sans-serif;text-decoration:none;white-space:nowrap;cursor:pointer;transition:transform .2s ease,box-shadow .2s ease}
 a.payxcommerce-express-button:hover{transform:translateY(-2px);box-shadow:0 7px 16px rgba(5,29,67,.28),0 0 0 1px rgba(0,185,181,.15);color:#fff;text-decoration:none}
 a.payxcommerce-express-button:active{transform:translateY(0)}
 a.payxcommerce-express-button:focus-visible{outline:3px solid #00b9b5;outline-offset:3px}
 a.payxcommerce-express-button .payxcommerce-wave{position:absolute;right:0;bottom:0;width:42%;height:100%;pointer-events:none}
 a.payxcommerce-express-button .payxcommerce-logo{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;width:33px;height:33px;flex-shrink:0;background:#fff;border-radius:9px}
 a.payxcommerce-express-button .payxcommerce-logo img{width:27px;height:27px;object-fit:contain}
-a.payxcommerce-express-button .payxcommerce-text{position:relative;z-index:1;letter-spacing:-.2px}
+a.payxcommerce-express-button .payxcommerce-text{position:relative;z-index:1;letter-spacing:-.2px;color:#ffffff}
 @media(max-width:480px){a.payxcommerce-express-button{gap:7px;padding:5px 9px;font-size:14px}a.payxcommerce-express-button .payxcommerce-logo{width:31px;height:31px}a.payxcommerce-express-button .payxcommerce-logo img{width:25px;height:25px}}
 @media(prefers-reduced-motion:reduce){a.payxcommerce-express-button{transition:none}}
 CSS;
