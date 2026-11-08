@@ -63,6 +63,16 @@ Implemented under `plugins/magento2` as module `PayXCommerce_Payment`.
 - Adds CSRF-aware `payxcommerce/webhook/index` controller to verify signed PayXCommerce webhooks and update orders.
 - Adds availability checks for active status, currency, billing country, min amount, and max amount.
 
+## osCommerce 4
+
+Implemented under `plugins/oscommerce4/upload` as an osCommerce 4 order-payment module, not an OpenCart extension.
+
+- Installs two PHP modules and a local checkout icon at the store root; the public versioned ZIP includes only those committed runtime files and the license.
+- Stores mode-specific HMAC or Developer App credentials and webhook secret in osCommerce encrypted module configuration; invalid settings block checkout rather than creating an unsafe request.
+- Supports an optional cart express entry and a branded normal checkout submit without bypassing address, shipping, tax, terms, or order creation.
+- Creates a hosted request idempotently after an osCommerce order is saved; browser return alone never marks it paid.
+- Verifies signed webhook events and request amount, currency, environment, and order ownership before one-time payment, refund, or chargeback transitions.
+
 ## Platform Acceptance Checklist
 
 Before enabling live processing for a merchant store, run acceptance checks in the target platform environment:

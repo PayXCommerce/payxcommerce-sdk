@@ -20,15 +20,24 @@ $read=static fn(string $path):string=>$run(['show',$sha.':'.$path]);
 preg_match('/\*\s*Version:\s*([0-9.]+)/',$read('plugins/woocommerce/payxcommerce-gateway.php'),$woo);
 $oc3=trim($read('plugins/opencart3/VERSION'));
 $oc4=json_decode($read('plugins/opencart4/upload/extension/payxcommerce/install.json'),true,512,JSON_THROW_ON_ERROR)['version'];
+$oscommerce4=trim($read('plugins/oscommerce4/VERSION'));
 $magento=json_decode($read('plugins/magento2/composer.json'),true,512,JSON_THROW_ON_ERROR)['version'];
 $specs=[
     'woocommerce'=>['WooCommerce',$woo[1]??'','plugins/woocommerce/','payxcommerce/','payxcommerce-woocommerce-'.($woo[1]??'').'.zip',['payxcommerce/payxcommerce-gateway.php','payxcommerce/sdk/payxcommerce-php/src/Client.php']],
     'opencart3'=>['OpenCart 3',$oc3,'plugins/opencart3/upload/','upload/','payxcommerce.ocmod.zip',['upload/system/library/payxcommerce.php','upload/catalog/controller/extension/payment/payxcommerce.php']],
     'opencart4'=>['OpenCart 4',$oc4,'plugins/opencart4/upload/extension/payxcommerce/','','payxcommerce.ocmod.zip',['install.json','admin/controller/payment/payxcommerce.php','system/library/payxcommerce.php']],
+    'oscommerce4'=>['osCommerce 4',$oscommerce4,'plugins/oscommerce4/upload/','','payxcommerce-oscommerce4-'.$oscommerce4.'.zip',['lib/common/modules/orderPayment/payxcommerce.php','lib/common/modules/orderPayment/lib/PayxClient.php','images/payxcommerce/logo-icon-dark-64.png']],
     'magento2-app-code'=>['Magento 2 — app/code',$magento,'plugins/magento2/','PayXCommerce/Payment/','payxcommerce-magento2-app-code-'.$magento.'.zip',['PayXCommerce/Payment/registration.php','PayXCommerce/Payment/etc/module.xml']],
     'magento2-composer'=>['Magento 2 — Composer',$magento,'plugins/magento2/','','payxcommerce-magento2-composer-'.$magento.'.zip',['composer.json','registration.php','etc/module.xml']],
 ];
-$catalog=[];
+$only=$argv[3]??null;
+if($only!==null){
+    if($only!=='oscommerce4'||!is_file($output.'/manifest.json'))throw new RuntimeException('Selective build is only supported for the osCommerce catalog addition');
+    $catalog=json_decode(file_get_contents($output.'/manifest.json'),true,512,JSON_THROW_ON_ERROR);
+    if(!is_array($catalog)||count($catalog)!==5&&!isset($catalog[$only]))throw new RuntimeException('Existing catalog invalid');
+    foreach(['woocommerce','opencart3','opencart4','magento2-app-code','magento2-composer']as$existing)if(!isset($catalog[$existing]))throw new RuntimeException('Existing catalog incomplete');
+    $specs=[$only=>$specs[$only]];
+}else{$catalog=[];}
 foreach($specs as$id=>[$title,$version,$prefix,$zipPrefix,$filename,$required]){
     if(!preg_match('/^\d+\.\d+\.\d+$/',$version))throw new RuntimeException('Invalid plugin version');
     $dir=$output.'/'.$id;if(!is_dir($dir)&&!mkdir($dir,0755,true))throw new RuntimeException('Cannot create package directory');
@@ -39,6 +48,11 @@ foreach($specs as$id=>[$title,$version,$prefix,$zipPrefix,$filename,$required]){
     foreach($entries as$entry){
         if(!preg_match('/^(100644|100755) blob [a-f0-9]+\t(.+)$/',$entry,$m))throw new RuntimeException('Non-regular source entry');
         $source=$m[2];$relative=substr($source,strlen($prefix));
+        if($id==='oscommerce4'&&!in_array($relative,[
+            'lib/common/modules/orderPayment/payxcommerce.php',
+            'lib/common/modules/orderPayment/lib/PayxClient.php',
+            'images/payxcommerce/logo-icon-dark-64.png',
+        ],true))throw new RuntimeException('Unexpected osCommerce runtime file');
         if(preg_match('~(^|/)(tests?|tools|vendor|node_modules|\.git)(/|$)~i',$relative)||$relative==='README.md')continue;
         if(!str_starts_with($source,$prefix)||str_contains($relative,'..')||!preg_match('/\.(php|json|xml|js|css|png|twig|html)$/i',$relative))throw new RuntimeException('Unexpected source file');
         $contents=$read($source);
@@ -48,7 +62,7 @@ foreach($specs as$id=>[$title,$version,$prefix,$zipPrefix,$filename,$required]){
     }
     // Preserve the committed distribution license inside each install layout.
     $license=$read('LICENSE');
-    $licenseName=match($id){'opencart3'=>'upload/system/library/payxcommerce-LICENSE.txt','opencart4'=>'system/library/payxcommerce-LICENSE.txt',default=>$zipPrefix.'LICENSE.txt'};
+    $licenseName=match($id){'opencart3'=>'upload/system/library/payxcommerce-LICENSE.txt','opencart4'=>'system/library/payxcommerce-LICENSE.txt','oscommerce4'=>'lib/common/modules/orderPayment/payxcommerce-LICENSE.txt',default=>$zipPrefix.'LICENSE.txt'};
     $expected[$licenseName]=hash('sha256',$license);$uncompressed+=strlen($license);
     if(!$zip->addFromString($licenseName,$license)||!$zip->setMtimeName($licenseName,1704067200)||!$zip->setCompressionName($licenseName,ZipArchive::CM_DEFLATE,9)||!$zip->setExternalAttributesName($licenseName,ZipArchive::OPSYS_UNIX,0100644<<16))throw new RuntimeException('ZIP license member failure');
     $zip->close();$bytes=filesize($temporary);

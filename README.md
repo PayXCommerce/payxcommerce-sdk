@@ -18,6 +18,7 @@ This repository is the public integration home for PayXCommerce. It starts with 
 - `plugins/woocommerce` — WooCommerce hosted checkout gateway.
 - `plugins/opencart3` — OpenCart 3 hosted checkout extension.
 - `plugins/opencart4` — OpenCart 4 hosted checkout extension.
+- `plugins/oscommerce4` — osCommerce 4 hosted checkout payment module.
 - `plugins/magento2` — Magento 2 hosted checkout module.
 
 ## API Coverage
@@ -96,7 +97,7 @@ Webhook HMAC verification must use the exact raw HTTP request-body bytes. Do not
 
 ## Releases and checksums
 
-For platform-native plugin archives, run `php scripts/build-public-plugin-packages.php [output-directory] [source-commit-SHA]`. The builder reads committed plugin source, rejects unexpected files, and writes a versioned ZIP manifest with SHA-256 checksums. Review the generated archives before distributing them; this repository update does not publish package registries or replace website downloads.
+For platform-native plugin archives, run `php scripts/build-public-plugin-packages.php [output-directory] [source-commit-SHA]`. The builder reads committed plugin source, rejects unexpected files, and writes a versioned ZIP manifest with SHA-256 checksums. Review the generated archives before distributing them; this repository update does not publish package registries or replace website downloads. The osCommerce 4 package has `lib/common/modules/orderPayment/` and `images/payxcommerce/` at ZIP root for extraction into the store root; it is not an admin ZIP-installer format.
 
 Public GitHub and package-registry publication are controlled release actions and are not implied by changes to the private development repository. Release operators must tag the reviewed commit, build artifacts with the scripts in `scripts/`, publish SHA-256 checksums, and verify the extracted artifact contents against that exact tag before publication.
 
