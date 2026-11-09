@@ -22,10 +22,13 @@ namespace yii\web {
 
 namespace {
     const FILENAME_DEFAULT = 'index';
+    const FILENAME_CHECKOUT_SUCCESS = 'checkout/success';
     function tep_href_link(string $path, string $params = '', string $mode = ''): string
     {
         return '/store/' . $path . ($params !== '' ? '?' . $params : '');
     }
+    class RedirectProbe extends RuntimeException {}
+    function tep_redirect(string $url): never { throw new RedirectProbe($url); }
 
     class Yii {
         public static object $app;
@@ -228,6 +231,18 @@ namespace {
     check(str_contains($paid, 'Payment confirmed') && str_contains($paid, 'View Order')
         && str_contains($paid, 'Continue Shopping') && !str_contains($paid, 'Checking for confirmation'),
         'guest confirmed page shows order links only after verified state');
+    $user->isGuest = false;
+    $user->id = 30;
+    $request->query['token'] = '';
+    try {
+        $render->invoke($module);
+        throw new RuntimeException('owned paid order did not redirect');
+    } catch (RedirectProbe $redirect) {
+        check($redirect->getMessage() === '/store/checkout/success?order_id=20',
+            'owned paid order redirects to native success page');
+    }
+    $user->isGuest = true;
+    $request->query['token'] = $token;
     $database->row['payment_status'] = 'failed';
     $failed = $render->invoke($module);
     check(str_contains($failed, 'Payment failed') && !str_contains($failed, 'Payment confirmed'),
