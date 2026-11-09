@@ -103,6 +103,16 @@ namespace {
     check($cents->invoke(null, '699.780000') === 69978, 'database decimal cents');
     rejects(fn () => $cents->invoke(null, '1.001000'), 'fractional-cent rejection');
 
+    $customerPayload = new ReflectionMethod(payxcommerce::class, 'customerPayload');
+    $customer = [
+        'customers_name' => 'Synthetic Buyer', 'customers_email_address' => 'buyer@example.test',
+        'customers_telephone' => '', 'billing_street_address' => '1 Test Street', 'billing_city' => 'Test City',
+    ];
+    check(!array_key_exists('mobile', $customerPayload->invoke(null, $customer, 'US')),
+        'optional blank phone omitted from PayX customer payload');
+    check($customerPayload->invoke(null, array_replace($customer, ['customers_telephone' => ' +12025550100 ']), 'US')['mobile'] === '+12025550100',
+        'provided phone retained and trimmed for PayX customer payload');
+
     rejects(fn () => new PayxClient(['base_url' => 'http://payxcommerce.com/api/v1']), 'insecure API URL');
     rejects(fn () => new PayxClient(['base_url' => 'https://user@payxcommerce.com/api/v1']), 'credential-bearing API URL');
     $client = new PayxClient(['base_url' => 'https://dev.payxcommerce.com/api/v1', 'webhook_secret' => 'test-only-signing-key']);

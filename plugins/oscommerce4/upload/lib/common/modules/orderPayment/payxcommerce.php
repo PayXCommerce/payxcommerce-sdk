@@ -335,6 +335,88 @@ JS);
         $order = $this->manager->getOrderInstance();
         $order->info['order_status'] = $this->order_status;
         $order->isPaidUpdated = true;
+        $this->resumeFailedCheckout($order);
+    }
+
+    /** osCommerce saves the order before after_process. Reuse that same order
+     * after a failed PayX initiation instead of creating another on retry. */
+    private function resumeFailedCheckout($order): void
+    {
+        global $cart;
+        $markedId = (int) $this->manager->get('payxcommerce_retry_order_id');
+        // A fatal error in an older plugin version may have left cart->order_id
+        // but no PayX retry marker. Reuse only after checking the saved order.
+        $id = $markedId > 0 ? $markedId : (int) ($cart->order_id ?? 0);
+        if ($id <= 0) return;
+
+        $fingerprint = (string) $this->manager->get('payxcommerce_retry_fingerprint');
+        if ($markedId > 0 && ($fingerprint === '' || !hash_equals($fingerprint, $this->retryFingerprint($order)))) {
+            $this->clearRetry(); // A changed checkout is a new order, not a payment retry.
+            return;
+        }
+        $saved = \Yii::$app->db->createCommand(
+            'SELECT orders_id, customers_id, basket_id, platform_id, payment_class, orders_status, currency FROM orders WHERE orders_id = :id',
+            [':id' => $id]
+        )->queryOne();
+        $savedAmount = \Yii::$app->db->createCommand(
+            "SELECT value_inc_tax FROM orders_total WHERE orders_id = :id AND class = 'ot_total' AND is_removed = 0 ORDER BY orders_total_id DESC LIMIT 1",
+            [':id' => $id]
+        )->queryScalar();
+        if (!$saved || (int) $saved['customers_id'] !== (int) \Yii::$app->user->id
+            || (int) $saved['basket_id'] !== (int) ($cart->basketID ?? 0)
+            || (int) $saved['platform_id'] !== (int) \common\classes\platform::currentId()
+            || $saved['payment_class'] !== $this->code
+            || $saved['currency'] !== (string) ($order->info['currency'] ?? '')
+            || $savedAmount === false
+            || self::normalizeDecimal((string) $savedAmount) !== self::normalizeDecimal((string) ($order->info['total_inc_tax'] ?? ''))) {
+            $this->clearRetry();
+            return;
+        }
+        if ((int) $saved['orders_status'] !== $this->order_status) {
+            $this->clearRetry();
+            $this->checkoutError('This order is no longer awaiting payment. Check your order history before trying again.');
+        }
+        $order->order_id = $id;
+        $this->after_process(); // Success and failure both redirect; core must not save a second order.
+        throw new \LogicException('PayX checkout retry did not redirect.');
+    }
+
+    private function retryFingerprint($order): string
+    {
+        global $cart;
+        return hash('sha256', json_encode([
+            (int) \Yii::$app->user->id,
+            (int) \common\classes\platform::currentId(),
+            (int) ($cart->basketID ?? 0),
+            (string) ($cart->cartID ?? ''),
+            (string) ($order->info['currency'] ?? ''),
+            (string) ($order->info['total_inc_tax'] ?? ''),
+            $this->manager->get('shipping'),
+            $this->manager->get('billto'),
+            $this->manager->get('sendto'),
+        ], JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR));
+    }
+
+    private function clearRetry(): void
+    {
+        $this->manager->remove('payxcommerce_retry_order_id');
+        $this->manager->remove('payxcommerce_retry_fingerprint');
+    }
+
+    private function checkoutError(string $message): never
+    {
+        $this->manager->set('payxcommerce_checkout_error', $message);
+        tep_redirect(tep_href_link(FILENAME_CHECKOUT_PAYMENT, 'payment_error=' . $this->code, 'SSL'));
+    }
+
+    public function get_error(): array
+    {
+        $message = (string) $this->manager->get('payxcommerce_checkout_error');
+        $this->manager->remove('payxcommerce_checkout_error');
+        return [
+            'title' => 'PayXCommerce payment could not start',
+            'error' => $message ?: 'No payment was taken. Please try again or contact the store for help.',
+        ];
     }
 
     public function after_process()
@@ -344,6 +426,27 @@ JS);
         if ($id <= 0) {
             throw new \RuntimeException('osCommerce order was not saved before PayX checkout.');
         }
+        try {
+            $checkoutUrl = $this->startCheckoutForSavedOrder($order, $id);
+            // The offsite redirect exits before CheckoutController performs these steps.
+            $this->trackCredits();
+            $this->manager->clearAfterProcess();
+            $this->clearRetry();
+            $this->manager->remove('payxcommerce_checkout_error');
+            $this->redirectCheckout($checkoutUrl);
+        } catch (\Throwable $exception) {
+            // Do not expose an API response, credentials, or a stack trace to the buyer.
+            $failure = preg_match('/^PayX request failed \(HTTP ([0-9]{3})/', $exception->getMessage(), $match)
+                ? 'API HTTP ' . $match[1] : get_class($exception);
+            \Yii::error('PayX checkout initiation failed for order #' . $id . ' (' . $failure . ')', 'payxcommerce');
+            $this->manager->set('payxcommerce_retry_order_id', $id);
+            $this->manager->set('payxcommerce_retry_fingerprint', $this->retryFingerprint($order));
+            $this->checkoutError('Order #' . $id . ' was saved, but secure payment could not start. No payment was taken. Please try again or contact the store with this order number.');
+        }
+    }
+
+    private function startCheckoutForSavedOrder($order, int $id): string
+    {
         $db = \Yii::$app->db;
         $lock = 'pxc_osc4_order_' . $id;
         if ((int) $db->createCommand('SELECT GET_LOCK(:name, 10)', [':name' => $lock])->queryScalar() !== 1) {
@@ -369,8 +472,8 @@ JS);
                 throw new \RuntimeException('Zero-value orders cannot use hosted checkout.');
             }
             $country = $db->createCommand('SELECT countries_iso_code_2 FROM countries WHERE countries_name = :name LIMIT 1', [':name' => $orderRow['billing_country']])->queryScalar();
-            if (!preg_match('/^[A-Z]{2}$/', (string) $country) || trim((string) $orderRow['customers_telephone']) === '') {
-                throw new \RuntimeException('A valid billing country and phone number are required for hosted checkout.');
+            if (!preg_match('/^[A-Z]{2}$/', (string) $country)) {
+                throw new \RuntimeException('A valid billing country is required for hosted checkout.');
             }
             $environment = $this->environment();
             $reference = 'OSC4-' . (int) $orderRow['platform_id'] . '-' . $id;
@@ -393,14 +496,7 @@ JS);
                     'amount' => $amount,
                     'currency' => $orderRow['currency'],
                     'purpose' => 'osCommerce Order #' . $id,
-                    'customer' => [
-                        'name' => trim((string) $orderRow['customers_name']) ?: 'Customer',
-                        'email' => (string) $orderRow['customers_email_address'],
-                        'mobile' => (string) $orderRow['customers_telephone'],
-                        'address' => (string) $orderRow['billing_street_address'],
-                        'city' => (string) $orderRow['billing_city'],
-                        'country' => $country,
-                    ],
+                    'customer' => self::customerPayload($orderRow, $country),
                     'merchant_reference' => $reference,
                     'merchant_order_id' => (string) $id,
                     'success_url' => $returnUrl,
@@ -429,11 +525,21 @@ JS);
         } finally {
             $db->createCommand('SELECT RELEASE_LOCK(:name)', [':name' => $lock])->queryScalar();
         }
-        // The offsite redirect exits before CheckoutController can do these standard
-        // post-order steps. Clear the cart only after a durable request and ledger exist.
-        $this->trackCredits();
-        $this->manager->clearAfterProcess();
-        $this->redirectCheckout($checkoutUrl);
+        return $checkoutUrl;
+    }
+
+    private static function customerPayload(array $orderRow, string $country): array
+    {
+        $customer = [
+            'name' => trim((string) $orderRow['customers_name']) ?: 'Customer',
+            'email' => (string) $orderRow['customers_email_address'],
+            'address' => (string) $orderRow['billing_street_address'],
+            'city' => (string) $orderRow['billing_city'],
+            'country' => $country,
+        ];
+        $phone = trim((string) $orderRow['customers_telephone']);
+        if ($phone !== '') $customer['mobile'] = $phone;
+        return $customer;
     }
 
     private function redirectCheckout(string $url): void
