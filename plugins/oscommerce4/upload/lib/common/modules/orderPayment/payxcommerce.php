@@ -491,7 +491,10 @@ JS);
                 $this->ensurePaymentLedger($order, (string) $row['request_number'], $amount, $orderRow);
                 $checkoutUrl = (string) $row['checkout_url'];
             } else {
-                $returnUrl = tep_href_link('callback/webhooks.payment.payxcommerce', 'action=return&orders_id=' . $id, 'SSL');
+                // A return URL is only a read-only order-status capability; it
+                // never confirms payment. It also works when a guest session ends.
+                $returnUrl = tep_href_link('callback/webhooks.payment.payxcommerce',
+                    'action=return&orders_id=' . $id . '&token=' . self::returnToken($id, (string) $key), 'SSL');
                 $payload = [
                     'amount' => $amount,
                     'currency' => $orderRow['currency'],
@@ -583,11 +586,124 @@ JS);
             && !isset($parts['user']) && !isset($parts['pass']);
     }
 
+    private static function returnToken(int $orderId, string $idempotencyKey): string
+    {
+        return hash_hmac('sha256', 'payxcommerce-oscommerce-return-v1:' . $orderId, $idempotencyKey);
+    }
+
+    private static function browserPaymentState(string $state): string
+    {
+        return in_array($state, ['paid', 'failed', 'cancelled', 'expired', 'partially_refunded', 'refunded', 'chargeback'], true)
+            ? $state : 'pending';
+    }
+
+    /** Browser status is read-only and is scoped to the order owner or its
+     * unguessable return capability. A bare orders_id is never sufficient. */
+    private function browserOrder(): ?array
+    {
+        $rawId = \Yii::$app->request->get('orders_id', '');
+        if (!is_string($rawId) && !is_int($rawId)) return null;
+        $rawId = (string) $rawId;
+        if (!preg_match('/^[1-9][0-9]{0,9}$/D', $rawId)) return null;
+        $id = (int) $rawId;
+        $row = \Yii::$app->db->createCommand(
+            'SELECT p.orders_id, p.platform_id, p.idempotency_key, p.request_number, p.amount, p.currency, '
+            . 'p.payment_status, p.created_at, o.customers_id, o.platform_id AS order_platform_id, o.payment_class '
+            . 'FROM payxcommerce_order p JOIN orders o ON o.orders_id = p.orders_id WHERE p.orders_id = :id',
+            [':id' => $id]
+        )->queryOne();
+        if (!$row || $row['payment_class'] !== $this->code || (int) $row['platform_id'] !== (int) $row['order_platform_id']
+            || (int) $row['platform_id'] !== (int) \common\classes\platform::currentId()
+            || !is_string($row['request_number']) || $row['request_number'] === '') return null;
+
+        $owner = !\Yii::$app->user->isGuest && (int) \Yii::$app->user->getId() === (int) $row['customers_id'];
+        $token = \Yii::$app->request->get('token', '');
+        if (!is_string($token)) $token = '';
+        $created = strtotime((string) $row['created_at']);
+        $validToken = preg_match('/^[a-f0-9]{64}$/D', $token) === 1 && $created !== false
+            && $created >= time() - 7 * 86400 && $created <= time() + 300
+            && hash_equals(self::returnToken($id, (string) $row['idempotency_key']), $token);
+        if (!$owner && !$validToken) return null;
+        $row['owner'] = $owner;
+        $row['token'] = $validToken ? $token : '';
+        $row['browser_state'] = self::browserPaymentState((string) $row['payment_status']);
+        return $row;
+    }
+
+    private function browserReturn(): string|array
+    {
+        $response = \Yii::$app->response;
+        $response->headers->set('Cache-Control', 'no-store, private');
+        $response->headers->set('Referrer-Policy', 'no-referrer');
+        $response->headers->set('X-Content-Type-Options', 'nosniff');
+        $response->headers->set('X-Frame-Options', 'DENY');
+        $response->headers->set('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'");
+        $order = $this->browserOrder();
+        if (!$order) {
+            $response->statusCode = 404;
+            return 'Order not found or return access expired.';
+        }
+        $action = (string) \Yii::$app->request->get('action');
+        if ($action === 'status') {
+            $response->format = \yii\web\Response::FORMAT_JSON;
+            return ['state' => $order['browser_state']];
+        }
+        if ($action === 'return' && $order['browser_state'] === 'paid' && $order['owner']) {
+            tep_redirect(tep_href_link(FILENAME_CHECKOUT_SUCCESS, 'order_id=' . $order['orders_id'], 'SSL'));
+        }
+        $response->format = \yii\web\Response::FORMAT_HTML;
+        $id = (int) $order['orders_id'];
+        $params = 'orders_id=' . $id . ($order['token'] !== '' ? '&token=' . $order['token'] : '');
+        $statusUrl = tep_href_link('callback/webhooks.payment.payxcommerce', 'action=status&' . $params, 'SSL');
+        $orderUrl = $order['owner']
+            ? tep_href_link('account/history-info', 'order_id=' . $id, 'SSL')
+            : tep_href_link('callback/webhooks.payment.payxcommerce', 'action=order&' . $params, 'SSL');
+        $homeUrl = tep_href_link(FILENAME_DEFAULT, '', 'SSL');
+        $escape = static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $state = $order['browser_state'];
+        $message = match ($state) {
+            'paid' => ['Payment confirmed', 'Your secure payment was verified and your order is confirmed.'],
+            'failed' => ['Payment failed', 'Your payment was not confirmed. Please review your order or contact the store.'],
+            'cancelled' => ['Payment cancelled', 'Your payment was cancelled. Your order was not paid.'],
+            'expired' => ['Payment expired', 'The payment window expired. Your order was not paid.'],
+            'partially_refunded' => ['Payment partially refunded', 'Payment was confirmed and a partial refund was recorded.'],
+            'refunded' => ['Payment refunded', 'Payment was confirmed and then refunded.'],
+            'chargeback' => ['Payment disputed', 'The payment is under dispute. Contact the store for help.'],
+            default => ['Confirming payment', 'Your order was saved. We are waiting for secure payment confirmation.'],
+        };
+        $title = $escape($message[0]);
+        $detail = $escape($message[1]);
+        $amount = $escape((string) $order['currency'] . ' ' . self::normalizeDecimal((string) $order['amount']));
+        $viewUrl = $escape($orderUrl);
+        $continueUrl = $escape($homeUrl);
+        $poll = $state === 'pending' ? '<p id="payx-wait">Checking for confirmation for up to 90 seconds. If it takes longer, use View Order later or contact the store with your order number.</p>' : '';
+        $script = '';
+        if ($state === 'pending') {
+            $statusJson = json_encode($statusUrl, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR);
+            $returnJson = json_encode(tep_href_link('callback/webhooks.payment.payxcommerce', 'action=return&' . $params, 'SSL'),
+                JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR);
+            $script = '<script>(function(){var end=Date.now()+90000;var statusUrl=' . $statusJson . ',returnUrl=' . $returnJson
+                . ';function check(){if(Date.now()>=end)return;fetch(statusUrl,{credentials:"same-origin",cache:"no-store"})'
+                . '.then(function(r){if(!r.ok)throw Error("status");return r.json()})'
+                . '.then(function(d){if(d.state!=="pending"){location.replace(returnUrl);return}setTimeout(check,3000)})'
+                . '.catch(function(){setTimeout(check,5000)})}setTimeout(check,3000)})();</script>';
+        }
+        return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+            . '<title>' . $title . ' — Order #' . $id . '</title><style>body{margin:0;background:#f3f7f9;color:#153448;font:16px/1.5 system-ui,sans-serif}'
+            . 'main{max-width:640px;margin:8vh auto;padding:32px;background:white;border-radius:12px;box-shadow:0 8px 28px #15344818}'
+            . 'h1{margin:0 0 12px}p{margin:10px 0}nav{display:flex;gap:12px;flex-wrap:wrap;margin-top:28px}'
+            . 'a{display:inline-block;padding:10px 16px;border-radius:7px;background:#073d55;color:white;text-decoration:none}'
+            . 'a.secondary{background:#e7eef2;color:#153448}</style></head><body><main><h1>' . $title . '</h1>'
+            . '<p>Order #' . $id . ' · ' . $amount . '</p><p>' . $detail . '</p>' . $poll
+            . '<nav><a href="' . $viewUrl . '">View Order</a><a class="secondary" href="' . $continueUrl
+            . '">Continue Shopping</a></nav></main>' . $script . '</body></html>';
+    }
+
     public function call_webhooks()
     {
-        if (\Yii::$app->request->get('action') === 'return') {
+        if (in_array(\Yii::$app->request->get('action'), ['return', 'status', 'order'], true)) {
             // Browser redirects are unauthenticated and are never payment proof.
-            return 'Your order was received. Payment status is pending secure confirmation. Please check your order history.';
+            return $this->browserReturn();
         }
         $raw = file_get_contents('php://input') ?: '';
         try {

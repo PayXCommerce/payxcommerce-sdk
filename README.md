@@ -23,9 +23,9 @@ This repository is the public integration home for PayXCommerce. It starts with 
 
 ## osCommerce 4 plugin
 
-The `plugins/oscommerce4` module supports osCommerce 4.14 hosted checkout. The current release is **0.1.1**. Download the installable ZIP and its checksum from the [PayXCommerce plugin catalog](https://payxcommerce.com/docs/plugins), or build it from a reviewed source commit with `php scripts/build-public-plugin-packages.php`. The [module guide](plugins/oscommerce4/README.md) documents setup, upgrades, callback security, and payment-status handling.
+The `plugins/oscommerce4` module supports osCommerce 4.14 hosted checkout. The current DEV candidate is **0.1.2**. Download the installable ZIP and its checksum from the [PayXCommerce plugin catalog](https://payxcommerce.com/docs/plugins) after release, or build it from a reviewed source commit with `php scripts/build-public-plugin-packages.php`. The [module guide](plugins/oscommerce4/README.md) documents setup, upgrades, callback security, and payment-status handling.
 
-Back up the store, extract `payxcommerce-oscommerce4-0.1.1.zip` at the osCommerce application root so its `lib/common/modules/orderPayment/` and `images/payxcommerce/` paths are retained, then install **PayXCommerce** in Admin → Modules → Payment. This is not an administrator ZIP-installer package. Configure the matching test/live API credentials and signed webhook secret in the module settings; never put credentials in the plugin source or a public repository. Validate a test checkout and signed callback before enabling live payments.
+Back up the store, extract `payxcommerce-oscommerce4-0.1.2.zip` at the osCommerce application root so its `lib/common/modules/orderPayment/` and `images/payxcommerce/` paths are retained, then install **PayXCommerce** in Admin → Modules → Payment. This is not an administrator ZIP-installer package. Configure the matching test/live API credentials and signed webhook secret in the module settings; never put credentials in the plugin source or a public repository. Validate a test checkout and signed callback before enabling live payments.
 
 ## API Coverage
 

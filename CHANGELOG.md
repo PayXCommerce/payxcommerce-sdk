@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-09 — osCommerce 4 plugin 0.1.2 DEV candidate (#1188)
+
+- Return from hosted checkout now reads only the saved, signed-webhook-confirmed payment state. An owned paid order redirects to native osCommerce success; guest return links can show a protected confirmation page.
+- Pending returns show a styled order page with bounded status polling and clear next steps. Failed, cancelled, expired, refunded and disputed states cannot masquerade as fresh payment success.
+- Order-bound, short-lived return capability protects guest status access; bare order IDs and other customers cannot view it.
+
 ## 2026-11-09 — osCommerce 4 plugin 0.1.1 (#1187)
 
 - Added the osCommerce 4 hosted-checkout module source, installation guide, standalone checks, and committed-source ZIP packaging alongside the existing store plugins.

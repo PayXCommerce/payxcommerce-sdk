@@ -12,7 +12,21 @@ namespace common\components {
     class View { public const POS_END = 3; }
 }
 
+namespace common\classes {
+    class platform { public static function currentId(): int { return 7; } }
+}
+
+namespace yii\web {
+    class Response { public const FORMAT_HTML = 'html'; public const FORMAT_JSON = 'json'; }
+}
+
 namespace {
+    const FILENAME_DEFAULT = 'index';
+    function tep_href_link(string $path, string $params = '', string $mode = ''): string
+    {
+        return '/store/' . $path . ($params !== '' ? '?' . $params : '');
+    }
+
     class Yii {
         public static object $app;
         public static function getAlias(string $alias): string { return '/store'; }
@@ -132,4 +146,94 @@ namespace {
     rejects(fn () => $client->verifyWebhook($body, array_replace($headers, [
         'HTTP_X_PXC_EVENT_ID' => 'bad event id',
     ])), 'unsafe event identifier');
+
+    $tokenMethod = new ReflectionMethod(payxcommerce::class, 'returnToken');
+    $token = $tokenMethod->invoke(null, 20, 'test-only-idempotency-key');
+    check(strlen($token) === 64 && ctype_xdigit($token), 'guest return token is a fixed-size HMAC');
+    check($token !== $tokenMethod->invoke(null, 21, 'test-only-idempotency-key')
+        && $token !== $tokenMethod->invoke(null, 20, 'other-test-key'), 'guest return token is order and key bound');
+    $stateMethod = new ReflectionMethod(payxcommerce::class, 'browserPaymentState');
+    check($stateMethod->invoke(null, 'creating') === 'pending'
+        && $stateMethod->invoke(null, 'paid') === 'paid'
+        && $stateMethod->invoke(null, 'failed') === 'failed'
+        && $stateMethod->invoke(null, 'cancelled') === 'cancelled', 'browser state follows verified backend state');
+
+    $orderRow = [
+        'orders_id' => 20, 'platform_id' => 7, 'order_platform_id' => 7,
+        'idempotency_key' => 'test-only-idempotency-key', 'request_number' => 'PXRQ-TEST-20',
+        'amount' => '55.880000', 'currency' => 'USD', 'payment_status' => 'pending',
+        'created_at' => date('Y-m-d H:i:s'), 'customers_id' => 30, 'payment_class' => 'payxcommerce',
+    ];
+    $request = new class {
+        public array $query = [];
+        public function get(string $key, $default = null) { return $this->query[$key] ?? $default; }
+    };
+    $user = new class {
+        public bool $isGuest = true;
+        public int $id = 30;
+        public function getId(): int { return $this->id; }
+    };
+    $database = new class($orderRow) {
+        public function __construct(public array $row) {}
+        public function createCommand(string $sql, array $params): object
+        {
+            return new class($this, $params) {
+                public function __construct(private object $db, private array $params) {}
+                public function queryOne(): array|false
+                {
+                    return (int) $this->params[':id'] === (int) $this->db->row['orders_id'] ? $this->db->row : false;
+                }
+            };
+        }
+    };
+    $headers = new class {
+        public array $values = [];
+        public function set(string $name, string $value): void { $this->values[$name] = $value; }
+    };
+    $response = new class($headers) {
+        public int $statusCode = 200;
+        public ?string $format = null;
+        public function __construct(public object $headers) {}
+    };
+    Yii::$app = (object) compact('request', 'user', 'database', 'response');
+    Yii::$app->db = $database;
+    $request->query = ['action' => 'return', 'orders_id' => '20', 'token' => $token];
+    $browserOrder = new ReflectionMethod(payxcommerce::class, 'browserOrder');
+    check($browserOrder->invoke($module)['browser_state'] === 'pending', 'guest return capability grants only its bound order');
+    $request->query['token'] = str_repeat('0', 64);
+    check($browserOrder->invoke($module) === null, 'wrong guest token denies order status');
+    $request->query['orders_id'] = '21';
+    check($browserOrder->invoke($module) === null, 'cross-order access denied');
+    $request->query['orders_id'] = ['20'];
+    check($browserOrder->invoke($module) === null, 'array-valued order identifier denied');
+    $request->query = ['action' => 'return', 'orders_id' => '20', 'token' => $token];
+    $database->row['created_at'] = date('Y-m-d H:i:s', time() - 8 * 86400);
+    check($browserOrder->invoke($module) === null, 'expired guest token denied');
+    $database->row['created_at'] = date('Y-m-d H:i:s');
+    $user->isGuest = false;
+    $request->query['token'] = '';
+    check($browserOrder->invoke($module)['owner'] === true, 'order owner can use legacy token-free return');
+    $user->id = 31;
+    check($browserOrder->invoke($module) === null, 'other customer cannot use legacy return');
+
+    $user->isGuest = true;
+    $request->query['token'] = $token;
+    $render = new ReflectionMethod(payxcommerce::class, 'browserReturn');
+    $pending = $render->invoke($module);
+    check(str_contains($pending, 'Confirming payment') && str_contains($pending, 'Order #20')
+        && str_contains($pending, 'Checking for confirmation') && str_contains($pending, 'action=status'),
+        'guest pending page polls read-only backend state');
+    $database->row['payment_status'] = 'paid';
+    $paid = $render->invoke($module);
+    check(str_contains($paid, 'Payment confirmed') && str_contains($paid, 'View Order')
+        && str_contains($paid, 'Continue Shopping') && !str_contains($paid, 'Checking for confirmation'),
+        'guest confirmed page shows order links only after verified state');
+    $database->row['payment_status'] = 'failed';
+    $failed = $render->invoke($module);
+    check(str_contains($failed, 'Payment failed') && !str_contains($failed, 'Payment confirmed'),
+        'failed payment never renders success');
+    $request->query['action'] = 'status';
+    check($render->invoke($module) === ['state' => 'failed'], 'status endpoint returns backend state only');
+    check(($headers->values['Cache-Control'] ?? '') === 'no-store, private'
+        && ($headers->values['Referrer-Policy'] ?? '') === 'no-referrer', 'return capability is not cached or leaked by referrer');
 }
