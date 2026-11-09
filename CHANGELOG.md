@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-09 — osCommerce 4 plugin 0.1.3 DEV candidate (#1189)
+
+- Classify only the API's exact merchant billing-country policy denial and show a clear, safe checkout error with the saved order number and no-payment assurance. Other API errors remain generic and provider response bodies are never logged or shown.
+- The DEV merchant's Sandbox country setting was separately updated to include the UK alongside the US, following the Administrator's decision; this is DEV configuration, not plugin code or a Live policy change.
+
 ## 2026-11-09 — osCommerce 4 plugin 0.1.2 DEV candidate (#1188)
 
 - Return from hosted checkout now reads only the saved, signed-webhook-confirmed payment state. An owned paid order redirects to native osCommerce success; guest return links can show a protected confirmation page.

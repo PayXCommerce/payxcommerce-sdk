@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace common\modules\orderPayment\lib;
 
+final class PayxCountryRestrictionException extends \RuntimeException {}
+
 /** Transport used by the osCommerce 4 payment module. No card data passes through the store. */
 final class PayxClient
 {
@@ -121,6 +123,9 @@ final class PayxClient
         curl_close($handle);
         if ($raw === false || $status < 200 || $status >= 300) {
             // Never log provider response bodies: they may contain tokens or customer data.
+            if (is_string($raw) && self::isCountryRestrictionResponse($status, $raw)) {
+                throw new PayxCountryRestrictionException('Billing country is restricted by the merchant payment policy.');
+            }
             throw new \RuntimeException('PayX request failed (HTTP ' . $status . ($error !== '' ? ', transport error' : '') . ').');
         }
         $result = json_decode($raw, true);
@@ -128,5 +133,14 @@ final class PayxClient
             throw new \RuntimeException('PayX returned invalid JSON.');
         }
         return $result;
+    }
+
+    private static function isCountryRestrictionResponse(int $status, string $raw): bool
+    {
+        if ($status !== 422) return false;
+        $response = json_decode($raw, true);
+        return is_array($response)
+            && ($response['error_code'] ?? null) === 'payment_request_limit_failed'
+            && ($response['message'] ?? null) === 'Customer country is not allowed for this merchant.';
     }
 }

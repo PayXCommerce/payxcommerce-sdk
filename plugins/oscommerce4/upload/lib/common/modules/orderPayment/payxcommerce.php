@@ -441,8 +441,16 @@ JS);
             \Yii::error('PayX checkout initiation failed for order #' . $id . ' (' . $failure . ')', 'payxcommerce');
             $this->manager->set('payxcommerce_retry_order_id', $id);
             $this->manager->set('payxcommerce_retry_fingerprint', $this->retryFingerprint($order));
-            $this->checkoutError('Order #' . $id . ' was saved, but secure payment could not start. No payment was taken. Please try again or contact the store with this order number.');
+            $this->checkoutError(self::checkoutFailureMessage($id, $exception));
         }
+    }
+
+    private static function checkoutFailureMessage(int $orderId, \Throwable $exception): string
+    {
+        if ($exception instanceof \common\modules\orderPayment\lib\PayxCountryRestrictionException) {
+            return 'Order #' . $orderId . ' was saved, but its billing country is not accepted for PayXCommerce payment. No payment was taken. Please contact the store with this order number.';
+        }
+        return 'Order #' . $orderId . ' was saved, but secure payment could not start. No payment was taken. Please try again or contact the store with this order number.';
     }
 
     private function startCheckoutForSavedOrder($order, int $id): string

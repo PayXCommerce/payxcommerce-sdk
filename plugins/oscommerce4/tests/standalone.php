@@ -132,6 +132,23 @@ namespace {
 
     rejects(fn () => new PayxClient(['base_url' => 'http://payxcommerce.com/api/v1']), 'insecure API URL');
     rejects(fn () => new PayxClient(['base_url' => 'https://user@payxcommerce.com/api/v1']), 'credential-bearing API URL');
+    $countryRestriction = new ReflectionMethod(PayxClient::class, 'isCountryRestrictionResponse');
+    $countryDenied = json_encode(['error_code' => 'payment_request_limit_failed',
+        'message' => 'Customer country is not allowed for this merchant.']);
+    check($countryRestriction->invoke(null, 422, $countryDenied), 'merchant billing-country denial has safe checkout classification');
+    check(!$countryRestriction->invoke(null, 422, json_encode(['error_code' => 'payment_request_limit_failed',
+        'message' => 'Amount exceeds merchant limit.']))
+        && !$countryRestriction->invoke(null, 403, $countryDenied)
+        && !$countryRestriction->invoke(null, 422, '{invalid'),
+        'other API failures and invalid responses never get country-denial classification');
+    $failureMessage = new ReflectionMethod(payxcommerce::class, 'checkoutFailureMessage');
+    $countryMessage = $failureMessage->invoke(null, 21,
+        new \common\modules\orderPayment\lib\PayxCountryRestrictionException('Billing country is restricted.'));
+    check(str_contains($countryMessage, 'Order #21') && str_contains($countryMessage, 'billing country')
+        && str_contains($countryMessage, 'No payment was taken'), 'checkout explains denied billing country and saved order');
+    $otherMessage = $failureMessage->invoke(null, 21, new RuntimeException('Sensitive provider response'));
+    check(str_contains($otherMessage, 'Order #21') && !str_contains($otherMessage, 'Sensitive provider response'),
+        'checkout keeps other provider failures generic');
     $client = new PayxClient(['base_url' => 'https://dev.payxcommerce.com/api/v1', 'webhook_secret' => 'test-only-signing-key']);
     $eventId = 'PXEV-test-1';
     $body = '{"event_type":"payment.success","environment":"test"}';
