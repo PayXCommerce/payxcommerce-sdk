@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-09 — osCommerce 4 plugin 0.1.1 (#1187)
+
+- Added the osCommerce 4 hosted-checkout module source, installation guide, standalone checks, and committed-source ZIP packaging alongside the existing store plugins.
+- Version 0.1.1 accepts a blank customer phone, displays an initiation error safely, and retries the same saved osCommerce order with its existing PayX idempotency key instead of creating a duplicate order.
+- The public plugin catalog provides the installable ZIP and SHA-256 checksum; the repository README explains installation and links to the module guide.
+
 ## 2026-10-26 — SDK 0.1.1 and plugin updates
 
 - PHP, Node.js, and Python SDKs now expose a bounded, allowlisted `Retry-After` response hint for explicit retry decisions. They do not automatically retry financial requests.
