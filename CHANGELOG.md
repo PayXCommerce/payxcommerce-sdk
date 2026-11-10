@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-10 — osCommerce 4 plugin 0.1.5 (#1197)
+
+- Hide PayX from checkout and cart express when the billing country is excluded by the merchant's mode-specific policy; refresh choices when the address changes. A fresh server-side check refuses stale PayX selections before osCommerce saves an order, while PayX's own payment-request enforcement remains authoritative.
+- Requires the matching PayXCommerce country-eligibility API endpoint. Existing payment methods, completed orders, webhook processing, and the other plugin packages are unchanged.
+
 ## 2026-11-10 — osCommerce 4 plugin 0.1.4 (#1195)
 
 - Charge the order's displayed selected-currency total using its saved currency conversion rate, with decimal-only rounding. Market-priced orders remain unconverted. A stale prepared request with the old amount is refused rather than reused or silently changed.
