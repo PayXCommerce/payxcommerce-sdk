@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-10 — osCommerce 4 plugin 0.1.4 (#1195)
+
+- Charge the order's displayed selected-currency total using its saved currency conversion rate, with decimal-only rounding. Market-priced orders remain unconverted. A stale prepared request with the old amount is refused rather than reused or silently changed.
+- Existing paid transactions are preserved; this correction applies to new checkout attempts and does not retroactively charge historical orders.
+
 ## 2026-11-09 — osCommerce 4 plugin 0.1.3 (#1189)
 
 - Classify only the API's exact merchant billing-country policy denial and show a clear, safe checkout error with the saved order number and no-payment assurance. Other API errors remain generic and provider response bodies are never logged or shown.

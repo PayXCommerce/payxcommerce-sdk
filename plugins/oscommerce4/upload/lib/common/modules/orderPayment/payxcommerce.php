@@ -466,19 +466,17 @@ JS);
             if ($row && $row['payment_status'] === 'paid') {
                 throw new \RuntimeException('This order has already been paid.');
             }
-            $orderRow = $db->createCommand('SELECT platform_id, currency, customers_name, customers_email_address, customers_telephone, billing_street_address, billing_city, billing_country FROM orders WHERE orders_id = :id', [':id' => $id])->queryOne();
-            $amount = $db->createCommand("SELECT value_inc_tax FROM orders_total WHERE orders_id = :id AND class = 'ot_total' AND is_removed = 0 ORDER BY orders_total_id DESC LIMIT 1", [':id' => $id])->queryScalar();
-            if (!$orderRow || $amount === false || !preg_match('/^\d+\.\d{6}$/', (string) $amount) || !preg_match('/^[A-Z]{3}$/', (string) $orderRow['currency'])) {
+            $orderRow = $db->createCommand('SELECT platform_id, currency, currency_value, customers_name, customers_email_address, customers_telephone, billing_street_address, billing_city, billing_country FROM orders WHERE orders_id = :id', [':id' => $id])->queryOne();
+            $totalRow = $db->createCommand("SELECT value_inc_tax, currency, currency_value FROM orders_total WHERE orders_id = :id AND class = 'ot_total' AND is_removed = 0 ORDER BY orders_total_id DESC LIMIT 1", [':id' => $id])->queryOne();
+            if (!$orderRow || !$totalRow) {
                 throw new \RuntimeException('Order currency or exact decimal total is unavailable.');
             }
             $scale = $db->createCommand('SELECT decimal_places FROM currencies WHERE code = :currency AND status = 1 LIMIT 1', [':currency' => $orderRow['currency']])->queryScalar();
             if ($scale === false || !ctype_digit((string) $scale) || (int) $scale > 2) {
                 throw new \RuntimeException('Currency precision is unsupported by this osCommerce payment ledger.');
             }
-            $amount = self::roundDecimal((string) $amount, (int) $scale);
-            if (self::normalizeDecimal($amount) === '0') {
-                throw new \RuntimeException('Zero-value orders cannot use hosted checkout.');
-            }
+            $amount = self::payableAmountForSavedOrder($orderRow, $totalRow, (int) $scale,
+                defined('USE_MARKET_PRICES') && USE_MARKET_PRICES === 'True');
             $country = $db->createCommand('SELECT countries_iso_code_2 FROM countries WHERE countries_name = :name LIMIT 1', [':name' => $orderRow['billing_country']])->queryScalar();
             if (!preg_match('/^[A-Z]{2}$/', (string) $country)) {
                 throw new \RuntimeException('A valid billing country is required for hosted checkout.');
@@ -1004,7 +1002,7 @@ JS);
     /** Half-up currency rounding using decimal digits only; never binary floating point. */
     public static function roundDecimal(string $value, int $scale): string
     {
-        if ($scale < 0 || $scale > 2 || !preg_match('/^(\d+)\.(\d{6})$/', $value, $matches)) {
+        if ($scale < 0 || $scale > 2 || !preg_match('/^(\d+)\.(\d{6}|\d{12})$/', $value, $matches)) {
             throw new \InvalidArgumentException('Invalid osCommerce decimal amount or currency scale.');
         }
         $digits = ltrim($matches[1], '0') . substr($matches[2], 0, $scale);
@@ -1021,6 +1019,59 @@ JS);
         if ($scale === 0) return $digits;
         $digits = str_pad($digits, $scale + 1, '0', STR_PAD_LEFT);
         return substr($digits, 0, -$scale) . '.' . substr($digits, -$scale);
+    }
+
+    /** Multiply two saved DECIMAL(…,6) values without PHP floats or BCMath.
+     * Round once, after multiplication, to avoid double-rounding a payment. */
+    public static function convertOrderAmount(string $baseAmount, string $rate, int $scale): string
+    {
+        if (!preg_match('/^\d{1,9}\.\d{6}$/', $baseAmount)
+            || !preg_match('/^\d{1,8}\.\d{6}$/', $rate)
+            || self::normalizeDecimal($rate) === '0') {
+            throw new \InvalidArgumentException('Invalid saved order total or conversion rate.');
+        }
+        $left = str_replace('.', '', $baseAmount);
+        $right = str_replace('.', '', $rate);
+        $digits = array_fill(0, strlen($left) + strlen($right), 0);
+        for ($i = strlen($left) - 1; $i >= 0; $i--) {
+            $carry = 0;
+            for ($j = strlen($right) - 1; $j >= 0; $j--) {
+                $index = $i + $j + 1;
+                $sum = $digits[$index] + (int) $left[$i] * (int) $right[$j] + $carry;
+                $digits[$index] = $sum % 10;
+                $carry = intdiv($sum, 10);
+            }
+            $digits[$i] += $carry;
+        }
+        $product = str_pad(ltrim(implode('', $digits), '0') ?: '0', 13, '0', STR_PAD_LEFT);
+        return self::roundDecimal(substr($product, 0, -12) . '.' . substr($product, -12), $scale);
+    }
+
+    /** Determine the selected-currency amount from the saved order snapshot.
+     * Do not consult current FX rates when preparing an already-saved order. */
+    private static function payableAmountForSavedOrder(array $order, array $total, int $scale, bool $marketPrices): string
+    {
+        $baseAmount = (string) ($total['value_inc_tax'] ?? '');
+        $currency = (string) ($order['currency'] ?? '');
+        $rate = (string) ($order['currency_value'] ?? '');
+        $totalRate = self::normalizeDecimal((string) ($total['currency_value'] ?? ''));
+        if (!preg_match('/^\d{1,9}\.\d{6}$/', $baseAmount)
+            || !preg_match('/^[A-Z]{3}$/', $currency)
+            || ($total['currency'] ?? null) !== $currency
+            || $totalRate === null || $totalRate !== self::normalizeDecimal($rate)) {
+            throw new \RuntimeException('Order currency or exact decimal total is unavailable.');
+        }
+        // osCommerce's selected-currency display multiplies base totals by
+        // the order rate unless market pricing already supplied local amounts.
+        $amount = $marketPrices ? self::roundDecimal($baseAmount, $scale)
+            : self::convertOrderAmount($baseAmount, $rate, $scale);
+        if (strlen(explode('.', $amount, 2)[0]) > 9) {
+            throw new \RuntimeException('Converted order total exceeds the osCommerce payment ledger range.');
+        }
+        if (self::normalizeDecimal($amount) === '0') {
+            throw new \RuntimeException('Zero-value orders cannot use hosted checkout.');
+        }
+        return $amount;
     }
 
     private function status(string $kind): int

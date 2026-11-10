@@ -114,6 +114,30 @@ namespace {
     check(payxcommerce::roundDecimal('699.785000', 2) === '699.79', 'currency rounding half up');
     check(payxcommerce::roundDecimal('0.005000', 2) === '0.01', 'sub-cent rounding');
     check(payxcommerce::roundDecimal('9999999999999.995000', 2) === '10000000000000.00', 'decimal carry');
+    check(payxcommerce::convertOrderAmount('873.695652', '1.396950', 2) === '1220.51',
+        'saved GBP-base order converts to displayed USD payable amount');
+    check(payxcommerce::convertOrderAmount('873.695652', '1.000000', 2) === '873.70',
+        'base currency keeps the same rounded payable amount');
+    check(payxcommerce::convertOrderAmount('0.004999', '1.000000', 2) === '0.00'
+        && payxcommerce::convertOrderAmount('0.005000', '1.000000', 2) === '0.01',
+        'conversion rounds once without sub-cent double rounding');
+    check(payxcommerce::convertOrderAmount('1.250000', '2.000000', 0) === '3',
+        'zero-decimal currency rounds converted amount once');
+    rejects(fn () => payxcommerce::convertOrderAmount('1.000000', '0.000000', 2), 'zero order rate');
+    rejects(fn () => payxcommerce::convertOrderAmount('1.000000', '-1.000000', 2), 'negative order rate');
+    $payable = new ReflectionMethod(payxcommerce::class, 'payableAmountForSavedOrder');
+    $savedOrder = ['currency' => 'USD', 'currency_value' => '1.396950'];
+    $savedTotal = ['value_inc_tax' => '873.695652', 'currency' => 'USD', 'currency_value' => '1.396950'];
+    check($payable->invoke(null, $savedOrder, $savedTotal, 2, false) === '1220.51',
+        'hosted request uses displayed selected-currency order snapshot');
+    check($payable->invoke(null, $savedOrder, $savedTotal, 2, true) === '873.70',
+        'market-pricing order does not convert its already local amount');
+    rejects(fn () => $payable->invoke(null, $savedOrder, array_replace($savedTotal, ['currency' => 'GBP']), 2, false),
+        'mismatched saved total currency');
+    rejects(fn () => $payable->invoke(null, $savedOrder, array_replace($savedTotal, ['currency_value' => '1.400000']), 2, false),
+        'mismatched saved conversion rate');
+    rejects(fn () => $payable->invoke(null, $savedOrder, array_replace($savedTotal, ['value_inc_tax' => '999999999.000000']), 2, false),
+        'converted amount beyond payment ledger range');
     check(payxcommerce::normalizeDecimal('000699.780000') === '699.78', 'canonical comparison');
     rejects(fn () => payxcommerce::roundDecimal('1.000001', 3), 'unsupported currency scale');
     $cents = new ReflectionMethod(payxcommerce::class, 'moneyCents');
