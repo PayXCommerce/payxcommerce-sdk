@@ -659,6 +659,9 @@ JS);
         if ($action === 'return' && $order['browser_state'] === 'paid' && $order['owner']) {
             tep_redirect(tep_href_link(FILENAME_CHECKOUT_SUCCESS, 'order_id=' . $order['orders_id'], 'SSL'));
         }
+        if ($action === 'order' && $order['owner']) {
+            tep_redirect(tep_href_link('account/history-info', 'order_id=' . $order['orders_id'], 'SSL'));
+        }
         $response->format = \yii\web\Response::FORMAT_HTML;
         $id = (int) $order['orders_id'];
         $params = 'orders_id=' . $id . ($order['token'] !== '' ? '&token=' . $order['token'] : '');
@@ -669,6 +672,42 @@ JS);
         $homeUrl = tep_href_link(FILENAME_DEFAULT, '', 'SSL');
         $escape = static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $state = $order['browser_state'];
+        if ($action === 'order') {
+            // The return capability is short-lived and order-bound. Show only
+            // non-PII order items; never expose addresses or account details.
+            $items = \Yii::$app->db->createCommand(
+                'SELECT products_name, products_quantity FROM orders_products WHERE orders_id = :id ORDER BY orders_products_id',
+                [':id' => $id]
+            )->queryAll();
+            $itemHtml = '';
+            foreach ($items as $item) {
+                $itemHtml .= '<li><span>' . $escape((string) $item['products_name']) . '</span><span>Qty '
+                    . (int) $item['products_quantity'] . '</span></li>';
+            }
+            if ($itemHtml === '') $itemHtml = '<li>Order items are unavailable. Contact the store with your order number.</li>';
+            $stateLabel = match ($state) {
+                'paid' => 'Paid',
+                'failed' => 'Payment failed',
+                'cancelled' => 'Payment cancelled',
+                'expired' => 'Payment expired',
+                'partially_refunded' => 'Partially refunded',
+                'refunded' => 'Refunded',
+                'chargeback' => 'Payment disputed',
+                default => 'Awaiting payment confirmation',
+            };
+            $returnUrl = $escape(tep_href_link('callback/webhooks.payment.payxcommerce', 'action=return&' . $params, 'SSL'));
+            $continueUrl = $escape($homeUrl);
+            return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+                . '<title>Order details — Order #' . $id . '</title><style>body{margin:0;background:#f3f7f9;color:#153448;font:16px/1.5 system-ui,sans-serif}'
+                . 'main{max-width:640px;margin:8vh auto;padding:32px;background:white;border-radius:12px;box-shadow:0 8px 28px #15344818}'
+                . 'h1{margin:0 0 12px}ul{padding:0;list-style:none}li{display:flex;justify-content:space-between;gap:16px;padding:12px 0;border-bottom:1px solid #dce5e9}'
+                . 'nav{display:flex;gap:12px;flex-wrap:wrap;margin-top:28px}a{display:inline-block;padding:10px 16px;border-radius:7px;background:#073d55;color:white;text-decoration:none}'
+                . 'a.secondary{background:#e7eef2;color:#153448}</style></head><body><main><h1>Order details</h1>'
+                . '<p>Order #' . $id . ' · ' . $escape($stateLabel) . '</p><h2>Items</h2><ul>' . $itemHtml . '</ul>'
+                . '<p><strong>Total: ' . $escape((string) $order['currency'] . ' ' . self::normalizeDecimal((string) $order['amount'])) . '</strong></p>'
+                . '<nav><a href="' . $returnUrl . '">Payment status</a><a class="secondary" href="' . $continueUrl
+                . '">Continue Shopping</a></nav></main></body></html>';
+        }
         $message = match ($state) {
             'paid' => ['Payment confirmed', 'Your secure payment was verified and your order is confirmed.'],
             'failed' => ['Payment failed', 'Your payment was not confirmed. Please review your order or contact the store.'],

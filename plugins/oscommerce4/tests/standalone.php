@@ -182,7 +182,8 @@ namespace {
         'orders_id' => 20, 'platform_id' => 7, 'order_platform_id' => 7,
         'idempotency_key' => 'test-only-idempotency-key', 'request_number' => 'PXRQ-TEST-20',
         'amount' => '55.880000', 'currency' => 'USD', 'payment_status' => 'pending',
-        'created_at' => date('Y-m-d H:i:s'), 'customers_id' => 30, 'payment_class' => 'payxcommerce',
+        'created_at' => date('Y-m-d H:i:s'), 'customers_id' => 30, 'customers_name' => 'Private Buyer',
+        'payment_class' => 'payxcommerce',
     ];
     $request = new class {
         public array $query = [];
@@ -195,13 +196,22 @@ namespace {
     };
     $database = new class($orderRow) {
         public function __construct(public array $row) {}
+        public array $items = [
+            ['products_name' => 'Test item <private>', 'products_quantity' => '2'],
+        ];
         public function createCommand(string $sql, array $params): object
         {
-            return new class($this, $params) {
-                public function __construct(private object $db, private array $params) {}
+            return new class($this, $sql, $params) {
+                public function __construct(private object $db, private string $sql, private array $params) {}
                 public function queryOne(): array|false
                 {
                     return (int) $this->params[':id'] === (int) $this->db->row['orders_id'] ? $this->db->row : false;
+                }
+                public function queryAll(): array
+                {
+                    if (!str_contains($this->sql, 'FROM orders_products')
+                        || (int) $this->params[':id'] !== (int) $this->db->row['orders_id']) return [];
+                    return $this->db->items;
                 }
             };
         }
@@ -243,14 +253,44 @@ namespace {
     check(str_contains($pending, 'Confirming payment') && str_contains($pending, 'Order #20')
         && str_contains($pending, 'Checking for confirmation') && str_contains($pending, 'action=status'),
         'guest pending page polls read-only backend state');
+    $request->query['action'] = 'order';
+    $pendingDetails = $render->invoke($module);
+    check(str_contains($pendingDetails, 'Awaiting payment confirmation')
+        && !str_contains($pendingDetails, 'Order #20 · Paid'), 'pending order details never claim payment');
+    $request->query['action'] = 'return';
     $database->row['payment_status'] = 'paid';
     $paid = $render->invoke($module);
     check(str_contains($paid, 'Payment confirmed') && str_contains($paid, 'View Order')
         && str_contains($paid, 'Continue Shopping') && !str_contains($paid, 'Checking for confirmation'),
         'guest confirmed page shows order links only after verified state');
+    $request->query['action'] = 'order';
+    $details = $render->invoke($module);
+    check(str_contains($details, '<h1>Order details</h1>') && str_contains($details, 'Test item &lt;private&gt;')
+        && str_contains($details, 'Qty 2') && str_contains($details, 'Total: USD 55.88')
+        && str_contains($details, 'Order #20 · Paid') && !str_contains($details, 'Payment confirmed')
+        && !str_contains($details, 'Private Buyer')
+        && $details !== $paid, 'guest View Order opens distinct escaped order details');
+    $request->query['token'] = str_repeat('0', 64);
+    $response->statusCode = 200;
+    check($render->invoke($module) === 'Order not found or return access expired.'
+        && $response->statusCode === 404, 'guest order details reject invalid capability');
+    $request->query['token'] = $token;
+    $database->row['created_at'] = date('Y-m-d H:i:s', time() - 8 * 86400);
+    $response->statusCode = 200;
+    check($render->invoke($module) === 'Order not found or return access expired.'
+        && $response->statusCode === 404, 'guest order details reject expired capability');
+    $database->row['created_at'] = date('Y-m-d H:i:s');
     $user->isGuest = false;
     $user->id = 30;
     $request->query['token'] = '';
+    try {
+        $render->invoke($module);
+        throw new RuntimeException('owned order details did not redirect');
+    } catch (RedirectProbe $redirect) {
+        check($redirect->getMessage() === '/store/account/history-info?order_id=20',
+            'owner View Order redirects to native account history');
+    }
+    $request->query['action'] = 'return';
     try {
         $render->invoke($module);
         throw new RuntimeException('owned paid order did not redirect');
