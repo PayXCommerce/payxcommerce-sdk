@@ -63,6 +63,24 @@ namespace {
     }
 
     $module = (new ReflectionClass(payxcommerce::class))->newInstanceWithoutConstructor();
+    $billingCountry = new ReflectionMethod(payxcommerce::class, 'checkoutBillingCountry');
+    $module->manager = new class {
+        public array $values = [];
+        public function getBillingAddress(): array { return ['country' => ['iso_code_2' => 'GB']]; }
+        public function set(string $key, string $value): void { $this->values[$key] = $value; }
+    };
+    check($billingCountry->invoke($module) === 'GB', 'current checkout billing ISO code drives PayX country eligibility');
+    $module->enabled = true;
+    rejects(function () use ($module) {
+        $module->manager = new class {
+            public array $values = [];
+            public function getBillingAddress(): array { return []; }
+            public function set(string $key, string $value): void { $this->values[$key] = $value; }
+        };
+        $module->before_process();
+    }, 'missing billing country is stopped before order persistence');
+    check(str_contains($module->manager->values['payxcommerce_checkout_error'] ?? '', 'No order was placed'),
+        'missing billing-country checkout error is explicit');
     $configuration = $module->configure_keys();
     check(array_key_first($configuration) === 'MODULE_PAYMENT_PAYXCOMMERCE_EXPRESS_CHECKOUT', 'express toggle first in settings');
     check($configuration['MODULE_PAYMENT_PAYXCOMMERCE_EXPRESS_CHECKOUT']['value'] === 'True', 'new-install express default on');

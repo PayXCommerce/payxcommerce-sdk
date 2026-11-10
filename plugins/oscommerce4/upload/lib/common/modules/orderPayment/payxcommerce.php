@@ -18,6 +18,7 @@ final class payxcommerce extends ModulePayment
     public $description = 'Redirect customers to PayXCommerce hosted checkout.';
     public $enabled = false;
     protected $visibility = ['shop_order'];
+    private array $countryEligibilityCache = [];
 
     protected $encrypted_keys = [
         'MODULE_PAYMENT_PAYXCOMMERCE_SECRET_KEY',
@@ -253,12 +254,18 @@ CSS;
         if ($groupId === 0 && \Yii::$app->user->isGuest && defined('DEFAULT_USER_GROUP')) {
             $groupId = (int) DEFAULT_USER_GROUP;
         }
-        return $this->getVisibily($platformId, ['shop_order'])
-            && $this->getGroupVisibily($platformId, $groupId);
+        if (!$this->getVisibily($platformId, ['shop_order'])
+            || !$this->getGroupVisibily($platformId, $groupId)) {
+            return false;
+        }
+        return $this->countryAllowedForSelection();
     }
 
     public function selection()
     {
+        if (!$this->countryAllowedForSelection()) {
+            return false;
+        }
         $logoUrl = rtrim((string) \Yii::getAlias('@web'), '/') . '/images/payxcommerce/logo-icon-dark-64.png';
         self::registerCheckoutButton($logoUrl);
         return ['id' => $this->code, 'module' => $this->public_title];
@@ -332,10 +339,57 @@ JS);
         if (!$this->enabled) {
             throw new \RuntimeException('PayXCommerce payment is not fully configured.');
         }
+        $country = $this->checkoutBillingCountry();
+        if ($country === null) {
+            $this->checkoutError('Please provide a billing country before selecting PayXCommerce. No order was placed.');
+        }
+        try {
+            $allowed = (new PayxClient($this->settings()))->countryEligibility($country);
+        } catch (\Throwable $exception) {
+            $this->checkoutError('PayXCommerce could not verify the billing-country policy. No order was placed; please retry or use another payment method.');
+        }
+        if (!$allowed) {
+            $this->checkoutError('PayXCommerce is not available for this billing country. No order was placed; choose another payment method.');
+        }
         $order = $this->manager->getOrderInstance();
         $order->info['order_status'] = $this->order_status;
         $order->isPaidUpdated = true;
         $this->resumeFailedCheckout($order);
+    }
+
+    private function checkoutBillingCountry(): ?string
+    {
+        if (!isset($this->manager) || !is_object($this->manager)
+            || !method_exists($this->manager, 'getBillingAddress')) {
+            return null;
+        }
+        $address = $this->manager->getBillingAddress();
+        $country = $address['country'] ?? null;
+        if (!is_array($country)) {
+            return null;
+        }
+        $code = trim((string) ($country['iso_code_2'] ?? $country['countries_iso_code_2'] ?? ''));
+        return $code !== '' ? $code : null;
+    }
+
+    private function countryAllowedForSelection(): bool
+    {
+        $country = $this->checkoutBillingCountry();
+        if ($country === null) {
+            return true; // No address yet; before_process requires a known country.
+        }
+        $cacheKey = $this->environment() . ':' . $country;
+        if (array_key_exists($cacheKey, $this->countryEligibilityCache)) {
+            return $this->countryEligibilityCache[$cacheKey];
+        }
+        try {
+            return $this->countryEligibilityCache[$cacheKey] =
+                (new PayxClient($this->settings()))->countryEligibility($country);
+        } catch (\Throwable $exception) {
+            // Keep the option visible on a transient policy-service error; the
+            // pre-save guard above fails explicitly instead of silently hiding it.
+            return true;
+        }
     }
 
     /** osCommerce saves the order before after_process. Reuse that same order

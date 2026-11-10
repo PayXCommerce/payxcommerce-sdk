@@ -42,6 +42,24 @@ final class PayxClient
         return $this->request('POST', '/payment-requests', $payload, $key);
     }
 
+    /** Authenticated, non-financial preflight; never creates a payment request. */
+    public function countryEligibility(string $country): bool
+    {
+        if (trim($country) === '' || strlen($country) > 100) {
+            throw new \InvalidArgumentException('A valid customer country is required.');
+        }
+        $environment = $this->settings['environment'] ?? '';
+        if (!in_array($environment, ['test', 'live'], true)) {
+            throw new \RuntimeException('PayX environment mismatch.');
+        }
+        $result = $this->request('POST', '/payment-requests/country-eligibility',
+            ['country' => $country, 'environment' => $environment], bin2hex(random_bytes(16)));
+        if (!isset($result['allowed']) || !is_bool($result['allowed'])) {
+            throw new \RuntimeException('PayX country eligibility response was incomplete.');
+        }
+        return $result['allowed'];
+    }
+
     public function verifyWebhook(string $raw, array $server): array
     {
         $id = (string) ($server['HTTP_X_PXC_EVENT_ID'] ?? '');
