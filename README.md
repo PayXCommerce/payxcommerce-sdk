@@ -23,7 +23,7 @@ This repository is the public integration home for PayXCommerce. It starts with 
 
 ## osCommerce 4 plugin
 
-The `plugins/oscommerce4` module supports osCommerce 4.14 hosted checkout. The current source version is **0.1.5**. Download the installable ZIP and its checksum from the [PayXCommerce plugin catalog](https://payxcommerce.com/docs/plugins), or build it from a reviewed source commit with `php scripts/build-public-plugin-packages.php`. The [module guide](plugins/oscommerce4/README.md) documents setup, upgrades, callback security, and payment-status handling.
+The `plugins/oscommerce4` module supports osCommerce 4.14 hosted checkout. The current source version is **0.1.5**. Build the installable ZIP and checksum from this exact source commit with `php scripts/build-public-plugin-packages.php`. The [PayXCommerce plugin catalog](https://payxcommerce.com/docs/plugins) may still offer an older version until its separate Live release; verify the displayed version and checksum before downloading, and do not install an older ZIP expecting 0.1.5 behavior. The [module guide](plugins/oscommerce4/README.md) documents setup, upgrades, callback security, and payment-status handling.
 
 Back up the store, extract `payxcommerce-oscommerce4-0.1.5.zip` at the osCommerce application root so its `lib/common/modules/orderPayment/` and `images/payxcommerce/` paths are retained, then install **PayXCommerce** in Admin → Modules → Payment. This is not an administrator ZIP-installer package. Configure the matching test/live API credentials and signed webhook secret in the module settings; never put credentials in the plugin source or a public repository. Validate a test checkout and signed callback before enabling live payments.
 
